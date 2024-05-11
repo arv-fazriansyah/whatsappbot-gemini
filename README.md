@@ -5,6 +5,9 @@
 
    ```
    sudo apt update
+   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
+   nvm install 20.11.1
+   npm install -g npm@latest
    ```
 
 2. **Instal Node.js menggunakan NVM (Node Version Manager) (opsional):**
