@@ -6,6 +6,7 @@ const {
     makeInMemoryStore,
     useMultiFileAuthState} = require("@whiskeysockets/baileys");
 
+const apiURL = "API_URL"
 const log = (pino = require("pino"));
 const { session } = { "session": "baileys_auth_info" };
 const { Boom } = require("@hapi/boom");
@@ -123,7 +124,7 @@ async function connectToWhatsApp() {
             const noWa = messages[0].key.remoteJid;
             await sock.readMessages([messages[0].key]);
             try {
-                const response = await fetch('https://api.arv-serverless.workers.dev/v1/chat/completions', {
+                const response = await fetch(apiURL, {
                     method: 'POST',
                     body: JSON.stringify({ messages: [{ role: "user", content: pesan }] }),
                     headers: { 'Content-Type': 'application/json' },
