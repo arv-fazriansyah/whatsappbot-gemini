@@ -1,20 +1,22 @@
+// index.js
 const {
     default: makeWASocket,
     DisconnectReason,
     fetchLatestBaileysVersion,
     isJidBroadcast,
     makeInMemoryStore,
-    useMultiFileAuthState} = require("@whiskeysockets/baileys");
+    useMultiFileAuthState
+} = require("@whiskeysockets/baileys");
 
-const apiURL = "https://api.arv-serverless.workers.dev/v1/chat/completions"
-const log = (pino = require("pino"));
+const apiURL = "https://api.arv-serverless.workers.dev/v1/chat/completions";
+const log = require("pino")();
 const { session } = { "session": "baileys_auth_info" };
 const { Boom } = require("@hapi/boom");
 const express = require("express");
 const fileUpload = require('express-fileupload');
 const cors = require('cors');
 const bodyParser = require("body-parser");
-const app = require("express")()
+const app = express();
 // enable files upload
 app.use(fileUpload({
     createParentPath: true
@@ -28,28 +30,28 @@ const io = require("socket.io")(server);
 const port = process.env.PORT || 8000;
 const qrcode = require("qrcode");
 
-app.use("/assets", express.static(__dirname + "/client/assets"));
+app.use("/assets", express.static("./client/assets"));
 
 app.get("/scan", (req, res) => {
-    res.sendFile("./client/server.html", {
-        root: __dirname,
+    res.sendFile("server.html", {
+        root: "./client",
     });
 });
 
 app.get("/", (req, res) => {
-    res.sendFile("./client/index.html", {
-        root: __dirname,
+    res.sendFile("index.html", {
+        root: "./client",
     });
 });
 
-const store = makeInMemoryStore({ logger: pino().child({ level: "silent", stream: "store" }) });
+const store = makeInMemoryStore({ logger: log.child({ level: "silent", stream: "store" }) });
 
 let sock;
 let qr;
 let soket;
 
 async function connectToWhatsApp() {
-    const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info')
+    const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
     let { version } = await fetchLatestBaileysVersion();
     sock = makeWASocket({
         printQRInTerminal: true,
@@ -59,7 +61,7 @@ async function connectToWhatsApp() {
         shouldIgnoreJid: jid => isJidBroadcast(jid),
     });
     store.bind(sock.ev);
-    sock.multi = true
+    sock.multi = true;
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === 'close') {
