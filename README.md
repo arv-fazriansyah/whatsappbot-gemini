@@ -1,16 +1,40 @@
-## Untuk menginstal Node.js LTS (Long Term Support) di Ubuntu, Anda dapat mengikuti langkah-langkah berikut:
+### Panduan Instalasi WhatsApp Gemini di Termux
 
-1. **Update Package Repository:**
-   Pastikan paket repository sistem Anda diperbarui dengan menjalankan perintah berikut di terminal:
+Berikut adalah panduan instalasi untuk menjalankan WhatsApp Gemini di Termux:
 
+1. Perbarui paket Termux dengan perintah:
    ```
-   sudo apt update
-   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
-   nvm install 20.11.1
-   npm install -g npm@latest
-   sudo apt install -y gconf-service libgbm-dev libasound2 libatk1.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libexpat1 libfontconfig1 libgcc1 libgconf-2-4 libgdk-pixbuf2.0-0 libglib2.0-0 libgtk-3-0 libnspr4 libpango-1.0-0 libpangocairo-1.0-0 libstdc++6 libx11-6 libx11-xcb1 libxcb1 libxcomposite1 libxcursor1 libxdamage1 libxext6 libxfixes3 libxi6 libxrandr2 libxrender1 libxss1 libxtst6 ca-certificates fonts-liberation libappindicator1 libnss3 lsb-release xdg-utils wget
+   pkg update
    ```
 
-   Pastikan keduanya mengembalikan nomor versi yang diharapkan.
+2. Instal Node.js LTS dengan menjalankan perintah berikut:
+   ```
+   pkg install nodejs-lts
+   ```
 
-Dengan langkah-langkah di atas, Anda akan berhasil menginstal Node.js LTS di Ubuntu. Jika Anda menggunakan NVM, Anda juga dapat dengan mudah menginstal versi Node.js lain atau beralih antar versi yang telah diinstal.
+3. Instal beberapa paket pendukung dengan perintah:
+   ```
+   pkg install curl wget nano git
+   ```
+
+4. Unduh repositori WhatsApp Gemini dengan menggunakan Git:
+   ```
+   git clone https://github.com/arv-fazriansyah/whatsappbot-gemini.git
+   ```
+
+5. Pindah ke direktori WhatsApp Gemini yang telah diunduh:
+   ```
+   cd whatsappbot-gemini/
+   ```
+
+6. Instal dependensi npm yang diperlukan dengan perintah:
+   ```
+   npm i
+   ```
+
+7. Terakhir, jalankan WhatsApp Gemini dengan perintah:
+   ```
+   npm run start
+   ```
+
+Setelah langkah-langkah di atas selesai, Anda seharusnya dapat menjalankan WhatsApp Gemini di Termux. Pastikan untuk mengikuti instruksi setiap langkah dengan cermat untuk memastikan instalasi yang berhasil. Jika ada masalah, pastikan bahwa semua dependensi telah diinstal dengan benar dan perintah-perintah dieksekusi tanpa kesalahan.
