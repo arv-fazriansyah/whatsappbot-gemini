@@ -29,7 +29,7 @@ const io = require("socket.io")(server);
 const port = process.env.PORT || 8000;
 const qrcode = require("qrcode");
 
-app.use("/assets", express.static(__dirname + "/client/assets"));
+app.use("/assets", express.static(path.join(__dirname + "/client/assets")));
 
 app.get("/scan", (req, res) => {
     res.sendFile("./client/server.html", {
