@@ -10,6 +10,7 @@ const apiURL = "https://api.arv-serverless.workers.dev/v1/chat/completions"
 const log = (pino = require("pino"));
 const { session } = { "session": "baileys_auth_info" };
 const { Boom } = require("@hapi/boom");
+const path = require('path');
 const express = require("express");
 const fileUpload = require('express-fileupload');
 const cors = require('cors');
