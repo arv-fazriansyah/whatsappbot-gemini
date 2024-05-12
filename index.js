@@ -42,8 +42,6 @@ app.get("/", (req, res) => {
     });
 });
 
-//fungsi suara capital 
-
 const store = makeInMemoryStore({ logger: pino().child({ level: "silent", stream: "store" }) });
 
 let sock;
@@ -135,9 +133,13 @@ async function connectToWhatsApp() {
                     await sock.sendMessage(noWa, { text: gptMessage }, { quoted: messages[0] });
                 } else {
                     console.error('Failed to fetch from ChatGPT:', response.statusText);
+                    // Send error message to WhatsApp
+                    await sock.sendMessage(noWa, { text: `Error: ${response.statusText}` }, { quoted: messages[0] });
                 }
             } catch (error) {
                 console.error('Error:', error);
+                // Send error message to WhatsApp
+                await sock.sendMessage(noWa, { text: `Error: ${error.message}` }, { quoted: messages[0] });
             }
         }
     });
