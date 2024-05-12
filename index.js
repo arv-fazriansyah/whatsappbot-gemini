@@ -157,6 +157,12 @@ io.on("connection", async (socket) => {
     } else if (qr) {
         updateQR("qr");
     }
+
+    // Handle incoming websocket requests
+    socket.on("customEvent", (data) => {
+        // Process incoming data and send response
+        soket.emit("responseEvent", "Data received: " + data);
+    });
 });
 
 connectToWhatsApp().catch(err => console.log("unexpected error: " + err));
