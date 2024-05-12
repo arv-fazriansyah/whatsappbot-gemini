@@ -1,29 +1,14 @@
 const {
     default: makeWASocket,
-    MessageType,
-    MessageOptions,
-    Mimetype,
     DisconnectReason,
-    BufferJSON,
-    AnyMessageContent,
-    delay,
     fetchLatestBaileysVersion,
     isJidBroadcast,
-    makeCacheableSignalKeyStore,
     makeInMemoryStore,
-    MessageRetryMap,
-    useMultiFileAuthState,
-    msgRetryCounterMap
-} = require("@whiskeysockets/baileys");
+    useMultiFileAuthState} = require("@whiskeysockets/baileys");
 
-const axios = require('axios');
 const log = (pino = require("pino"));
 const { session } = { "session": "baileys_auth_info" };
 const { Boom } = require("@hapi/boom");
-const path = require('path');
-const fs = require('fs');
-const http = require('http');
-const https = require('https');
 const express = require("express");
 const fileUpload = require('express-fileupload');
 const cors = require('cors');
@@ -57,14 +42,6 @@ app.get("/", (req, res) => {
 });
 
 //fungsi suara capital 
-function capital(textSound) {
-    const arr = textSound.split(" ");
-    for (var i = 0; i < arr.length; i++) {
-        arr[i] = arr[i].charAt(0).toUpperCase() + arr[i].slice(1);
-    }
-    const str = arr.join(" ");
-    return str;
-}
 
 const store = makeInMemoryStore({ logger: pino().child({ level: "silent", stream: "store" }) });
 
@@ -74,7 +51,7 @@ let soket;
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info')
-    let { version, isLatest } = await fetchLatestBaileysVersion();
+    let { version } = await fetchLatestBaileysVersion();
     sock = makeWASocket({
         printQRInTerminal: true,
         auth: state,
