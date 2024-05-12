@@ -8,20 +8,19 @@
   ],
   "routes": [
     {
-      "src": "/assets/(.*)", // Mengarahkan semua permintaan yang dimulai dengan /assets/ ke folder assets
-      "dest": "/client/assets/$1" // Mengarahkan ke folder assets dalam proyek Anda
+      "src": "/assets/(.*)", 
+      "dest": "/client/assets/$1"
     },
     {
       "src": "/scan",
-      "dest": "index.js" // Mengarahkan /scan ke index.js
+      "dest": "index.js"
     },
     {
       "src": "/",
-      "dest": "index.js" // Mengarahkan permintaan root ke index.js
+      "dest": "index.js"
     },
     {
-      "src": "/(.*)", // Mengarahkan semua path lainnya ke index.html
-      "dest": "/client/index.html"
+      "src": "/(.*)", 
     }
   ]
 }
