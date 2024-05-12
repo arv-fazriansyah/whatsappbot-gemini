@@ -100,10 +100,6 @@ async function connectToWhatsApp() {
             }
         } else if (connection === 'open') {
             console.log('opened connection');
-            let groups = Object.values(await sock.groupFetchAllParticipating());
-            for (let group of groups) {
-                console.log("id_group: " + group.id + " || Nama Group: " + group.subject);
-            }
             return;
         }
         if (update.qr) {
@@ -127,7 +123,7 @@ async function connectToWhatsApp() {
             const noWa = messages[0].key.remoteJid;
             await sock.readMessages([messages[0].key]);
             try {
-                const response = await fetch('URL', {
+                const response = await fetch('https://api.arv-serverless.workers.dev/v1/chat/completions', {
                     method: 'POST',
                     body: JSON.stringify({ messages: [{ role: "user", content: pesan }] }),
                     headers: { 'Content-Type': 'application/json' },
