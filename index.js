@@ -30,18 +30,14 @@ const io = require("socket.io")(server);
 const port = process.env.PORT || 8000;
 const qrcode = require("qrcode");
 
-app.use("/assets", express.static(__dirname + "/client/assets"));
+app.use("/assets", express.static(path.join(__dirname, "client", "assets")));
 
 app.get("/scan", (req, res) => {
-    res.sendFile("./client/server.html", {
-        root: __dirname,
-    });
+    res.sendFile(path.join(__dirname, "client", "server.html"));
 });
 
 app.get("/", (req, res) => {
-    res.sendFile("./client/index.html", {
-        root: __dirname,
-    });
+    res.sendFile(path.join(__dirname, "client", "index.html"));
 });
 
 const store = makeInMemoryStore({ logger: pino().child({ level: "silent", stream: "store" }) });
