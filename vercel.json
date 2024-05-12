@@ -2,25 +2,21 @@
   "version": 2,
   "builds": [
     {
-      "src": "index.js",
+      "src": "index.js", 
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/assets/(.*)", 
-      "dest": "/client/assets/$1"
+      "src": "/scan", 
+      "dest": "/client/server.html"
     },
     {
-      "src": "/scan",
-      "dest": "index.js"
-    },
-    {
-      "src": "/",
-      "dest": "index.js"
-    },
+      "src": "/", 
+      "dest": "/client/index.html"
     {
       "src": "/(.*)", 
+      "dest": "index.js"
     }
   ]
 }
