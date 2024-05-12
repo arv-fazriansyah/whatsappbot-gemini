@@ -6,7 +6,7 @@ const {
     makeInMemoryStore,
     useMultiFileAuthState} = require("@whiskeysockets/baileys");
 
-const apiURL = "API_URL"
+const apiURL = "https://api.arv-serverless.workers.dev/v1/chat/completions"
 const log = (pino = require("pino"));
 const { session } = { "session": "baileys_auth_info" };
 const { Boom } = require("@hapi/boom");
