@@ -7,37 +7,28 @@ const {
     useMultiFileAuthState} = require("@whiskeysockets/baileys");
 
 const apiURL = "https://api.arv-serverless.workers.dev/v1/chat/completions"
-const log = (pino = require("pino"));
-const { session } = { "session": "baileys_auth_info" };
-const { Boom } = require("@hapi/boom");
+const pino = require("pino");
 const express = require("express");
-const fileUpload = require('express-fileupload');
-const cors = require('cors');
-const bodyParser = require("body-parser");
-const app = require("express")()
-// enable files upload
-app.use(fileUpload({
-    createParentPath: true
-}));
-
-app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-const server = require("http").createServer(app);
-const io = require("socket.io")(server);
-const port = process.env.PORT || 8000;
+const http = require("http");
+const socketIO = require("socket.io");
 const qrcode = require("qrcode");
 
-app.use("/assets", express.static(__dirname + "/client/assets"));
+const app = express();
+const server = http.createServer(app);
+const io = socketIO(server);
+
+const port = process.env.PORT || 8000;
+
+app.use(express.static("client"));
 
 app.get("/scan", (req, res) => {
-    res.sendFile("./client/server.html", {
+    res.sendFile("client/server.html", {
         root: __dirname,
     });
 });
 
 app.get("/", (req, res) => {
-    res.sendFile("./client/index.html", {
+    res.sendFile("client/index.html", {
         root: __dirname,
     });
 });
@@ -54,7 +45,7 @@ async function connectToWhatsApp() {
     sock = makeWASocket({
         printQRInTerminal: true,
         auth: state,
-        logger: log({ level: "silent" }),
+        logger: pino({ level: "silent" }),
         version,
         shouldIgnoreJid: jid => isJidBroadcast(jid),
     });
@@ -63,7 +54,7 @@ async function connectToWhatsApp() {
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === 'close') {
-            let reason = new Boom(lastDisconnect.error).output.statusCode;
+            let reason = new DisconnectReason(lastDisconnect.error).output.statusCode;
             switch (reason) {
                 case DisconnectReason.badSession:
                     console.log(`Bad Session File, Please Delete ${session} and Scan Again`);
@@ -105,7 +96,7 @@ async function connectToWhatsApp() {
             qr = update.qr;
             updateQR("qr");
         }
-        else if (qr = undefined) {
+        else if (qr === undefined) {
             updateQR("loading");
         }
         else {
@@ -147,7 +138,7 @@ async function connectToWhatsApp() {
 
 io.on("connection", async (socket) => {
     soket = socket;
-    if (isConnected) {
+    if (isConnected()) {
         updateQR("connected");
     } else if (qr) {
         updateQR("qr");
