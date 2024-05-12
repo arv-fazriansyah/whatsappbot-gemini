@@ -2,14 +2,26 @@
   "version": 2,
   "builds": [
     {
-      "src": "index.js", 
+      "src": "index.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
     {
-      "src": "/(.*)",
-      "dest": "index.js"
+      "src": "/assets/(.*)", // Mengarahkan semua permintaan yang dimulai dengan /assets/ ke folder assets
+      "dest": "/client/assets/$1" // Mengarahkan ke folder assets dalam proyek Anda
+    },
+    {
+      "src": "/scan",
+      "dest": "index.js" // Mengarahkan /scan ke index.js
+    },
+    {
+      "src": "/",
+      "dest": "index.js" // Mengarahkan permintaan root ke index.js
+    },
+    {
+      "src": "/(.*)", // Mengarahkan semua path lainnya ke index.html
+      "dest": "/client/index.html"
     }
   ]
 }
