@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "builds": [
+  "buildCommand": [
     { "src": "./index.js" },
     { "use": "@now/node" }
   ],
