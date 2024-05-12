@@ -1,8 +1,4 @@
 {
-  "builds": [
-    { "src": "/index.js" },
-    { "use": "@vercel/node" }
-  ],
   "rewrites": [
     { "source": "/scan", "destination": "/index.html" },
     { "source": "/(.*)", "destination": "/index.html" }
