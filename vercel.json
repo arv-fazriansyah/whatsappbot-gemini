@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/client/$1" }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": ":8000/$1" }
+  ]
+}
