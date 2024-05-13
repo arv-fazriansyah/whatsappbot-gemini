@@ -1,4 +1,11 @@
-const { default: makeWASocket, DisconnectReason, fetchLatestBaileysVersion, isJidBroadcast, makeInMemoryStore, useMultiFileAuthState } = require("@whiskeysockets/baileys");
+const {
+    default: makeWASocket,
+    DisconnectReason,
+    fetchLatestBaileysVersion,
+    isJidBroadcast,
+    makeInMemoryStore,
+    useMultiFileAuthState
+} = require("@whiskeysockets/baileys");
 const { Boom } = require("@hapi/boom");
 const express = require("express");
 const fileUpload = require('express-fileupload');
@@ -74,7 +81,6 @@ async function handleMessagesUpsert({ messages, type }) {
     if (type === "notify" && !messages[0].key.fromMe) {
         const pesan = messages[0].message.conversation;
         const noWa = messages[0].key.remoteJid;
-        await sock.readMessages([messages[0].key]);
         try {
             const response = await fetch(apiURL, {
                 method: 'POST',
@@ -82,6 +88,7 @@ async function handleMessagesUpsert({ messages, type }) {
                 headers: { 'Content-Type': 'application/json' },
             });
             if (response.ok) {
+                await sock.readMessages([messages[0].key]);
                 const data = await response.json();
                 const gptMessage = data.choices[0].message.content;
                 await sock.sendMessage(noWa, { text: gptMessage }, { quoted: messages[0] });
@@ -125,7 +132,7 @@ function isConnected() {
     return !!sock.user;
 }
 
-function updateQR(data) {
+function updateQR(status) {
     const statusMap = {
         "qr": () => {
             qrcode.toDataURL(qr, (err, url) => {
@@ -146,7 +153,7 @@ function updateQR(data) {
             soket?.emit("log", "Registering QR Code , please wait!");
         },
     };
-    const updateFunction = statusMap[data];
+    const updateFunction = statusMap[status];
     if (updateFunction) updateFunction();
 }
 
@@ -159,9 +166,31 @@ io.on("connection", async (socket) => {
     }
 
     // Handle incoming websocket requests
-    socket.on("customEvent", (data) => {
-        // Process incoming data and send response
-        soket.emit("responseEvent", "Data received: " + data);
+    socket.on("sendMessage", async (message) => {
+        // Proses pesan yang diterima dari client
+        console.log("Message received from client:", message);
+        
+        // Kirim pesan ke URL
+        try {
+            const response = await fetch(apiURL, {
+                method: 'POST',
+                body: JSON.stringify({ message }),
+                headers: { 'Content-Type': 'application/json' },
+            });
+            if (response.ok) {
+                const responseData = await response.json();
+                console.log("Response from fetch URL:", responseData);
+                
+                // Kirim balasan ke client
+                soket.emit("messageResponse", responseData);
+            } else {
+                console.error('Failed to fetch from URL:', response.statusText);
+                soket.emit("messageResponse", { error: response.statusText });
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            soket.emit("messageResponse", { error: error.message });
+        }
     });
 });
 
