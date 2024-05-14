@@ -89,6 +89,8 @@ async function handleMessagesUpsert({ messages, type }) {
         }
 
         try {
+            await sock.readMessages([messages[0].key]);
+            await sock.sendPresenceUpdate('composing', noWa);
             const response = await fetch(apiURL, {
                 method: 'POST',
                 body: JSON.stringify({ messages: [{ role: "user", content: pesan }] }),
