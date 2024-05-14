@@ -79,8 +79,15 @@ function handleConnectionUpdate(update) {
 
 async function handleMessagesUpsert({ messages, type }) {
     if (type === "notify" && !messages[0].key.fromMe) {
-        const pesan = messages[0].message.conversation;
+        let pesan = messages[0].message.conversation || messages[0].message.extendedTextMessage?.text;
         const noWa = messages[0].key.remoteJid;
+        console.log(`User: ${noWa}, ${JSON.stringify(messages[0], null, 2)}`);
+
+        if (pesan === undefined || pesan === null || pesan === "") {
+            //console.log('Received message is undefined, null, or an empty string, skipping processing.');
+            return;
+        }
+
         try {
             const response = await fetch(apiURL, {
                 method: 'POST',
@@ -88,10 +95,11 @@ async function handleMessagesUpsert({ messages, type }) {
                 headers: { 'Content-Type': 'application/json' },
             });
             if (response.ok) {
-                await sock.readMessages([messages[0].key]);
                 const data = await response.json();
                 const gptMessage = data.choices[0].message.content;
+                await sock.readMessages([messages[0].key]);
                 await sock.sendMessage(noWa, { text: gptMessage }, { quoted: messages[0] });
+                //console.log(`Gemini: ${gptMessage}`);
             } else {
                 console.error('Failed to fetch from ChatGPT:', response.statusText);
                 await sock.sendMessage(noWa, { text: `Error: ${response.statusText}` }, { quoted: messages[0] });
