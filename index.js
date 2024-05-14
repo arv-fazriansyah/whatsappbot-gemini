@@ -6,6 +6,8 @@ const {
     makeInMemoryStore,
     useMultiFileAuthState
 } = require("@whiskeysockets/baileys");
+require('dotenv').config(); 
+const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require("@google/generative-ai");
 const { Boom } = require("@hapi/boom");
 const express = require("express");
 const fileUpload = require('express-fileupload');
@@ -16,13 +18,37 @@ const path = require('path');
 const qrcode = require("qrcode");
 const pino = require("pino");
 
-const apiURL = "https://api.arv-serverless.workers.dev/v1/chat/completions";
 const session = "baileys_auth_info";
 const port = process.env.PORT || 8000;
 
 const app = express();
 const server = http.createServer(app);
 const io = require("socket.io")(server);
+
+// Configuration for message generation
+const generationConfig = {
+    temperature: 0.9,
+    topK: 1,
+    topP: 1,
+    maxOutputTokens: 2048
+};
+
+// Safety settings for model response
+const safetySettings = [
+    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+];
+
+// History for the model response
+let chatHistory = [
+    { role: "user", parts: [{ text: "Kamu adalah Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
+    { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
+];
+
+const genAI = new GoogleGenerativeAI(process.env.API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
 
 app.use(cors());
 app.use(bodyParser.json());
@@ -62,7 +88,7 @@ function handleConnectionUpdate(update) {
             handleConnectionClose(lastDisconnect.error);
             break;
         case 'open':
-            console.log('opened connection');
+            console.log('Opened connection');
             break;
         default:
             break;
@@ -81,36 +107,33 @@ async function handleMessagesUpsert({ messages, type }) {
     if (type === "notify" && !messages[0].key.fromMe) {
         let pesan = messages[0].message.conversation || messages[0].message.extendedTextMessage?.text;
         const noWa = messages[0].key.remoteJid;
-        // console.log(`User: ${noWa}, ${JSON.stringify(messages[0], null, 2)}`);
 
-        if (pesan === undefined || pesan === null || pesan === "") {
-            // console.log('Received message is undefined, null, or an empty string, skipping processing.');
-            return;
-        }
+        if (!pesan) return;
 
         try {
             await sock.readMessages([messages[0].key]);
             await sock.sendPresenceUpdate('composing', noWa);
-            const response = await fetch(apiURL, {
-                method: 'POST',
-                body: JSON.stringify({ messages: [{ role: "user", content: pesan }] }),
-                headers: { 'Content-Type': 'application/json' },
-            });
-            if (response.ok) {
-                const data = await response.json();
-                const gptMessage = data.choices[0].message.content;
-                await sock.readMessages([messages[0].key]);
-                await sock.sendMessage(noWa, { text: gptMessage }, { quoted: messages[0] });
-                // console.log(`Gemini: ${gptMessage}`);
-            } else {
-                console.error('Failed to fetch from ChatGPT:', response.statusText);
-                await sock.sendMessage(noWa, { text: `Error: ${response.statusText}` }, { quoted: messages[0] });
-            }
+            const response = await handleMessage(pesan);
+            await sock.sendMessage(noWa, { text: response }, { quoted: messages[0] });
         } catch (error) {
             console.error('Error:', error);
             await sock.sendMessage(noWa, { text: `Error: ${error.message}` }, { quoted: messages[0] });
         }
     }
+}
+
+async function handleMessage(pesan) {
+    const chat = model.startChat({
+        generationConfig,
+        safetySettings,
+        history: chatHistory,
+    });
+
+    const result = await chat.sendMessage(pesan);
+    const response = await result.response;
+    const text = response.text();
+    console.log(text);
+    return text;
 }
 
 function handleConnectionClose(error) {
@@ -175,28 +198,12 @@ io.on("connection", async (socket) => {
         updateQR("qr");
     }
 
-    // Handle incoming websocket requests
     socket.on("sendMessage", async (message) => {
-        // Proses pesan yang diterima dari client
         console.log("Message received from client:", message);
-        
-        // Kirim pesan ke URL
+
         try {
-            const response = await fetch(apiURL, {
-                method: 'POST',
-                body: JSON.stringify({ message }),
-                headers: { 'Content-Type': 'application/json' },
-            });
-            if (response.ok) {
-                const responseData = await response.json();
-                console.log("Response from fetch URL:", responseData);
-                
-                // Kirim balasan ke client
-                soket.emit("messageResponse", responseData);
-            } else {
-                console.error('Failed to fetch from URL:', response.statusText);
-                soket.emit("messageResponse", { error: response.statusText });
-            }
+            const response = await handleMessage(message);
+            soket.emit("messageResponse", response);
         } catch (error) {
             console.error('Error:', error);
             soket.emit("messageResponse", { error: error.message });
@@ -204,7 +211,7 @@ io.on("connection", async (socket) => {
     });
 });
 
-connectToWhatsApp().catch(err => console.log("unexpected error: " + err));
+connectToWhatsApp().catch(err => console.log("Unexpected error: " + err));
 server.listen(port, () => {
-    console.log("Server Berjalan pada Port : " + port);
+    console.log("Server running on port: " + port);
 });
