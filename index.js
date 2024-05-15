@@ -135,9 +135,9 @@ function handleDisconnect(reason) {
 }
 
 async function handleMessageUpsert({ messages, type }) {
-    if (type === "notify" && !messages[0].key.fromMe) {
+    if (type === "notify" && messages.length > 0 && !messages[0].key.fromMe) {
         const message = messages[0];
-        const messageContent = message.message.conversation || message.message.extendedTextMessage?.text;
+        const messageContent = message.message.conversation || (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
 
         if (!messageContent) return;
 
@@ -147,8 +147,9 @@ async function handleMessageUpsert({ messages, type }) {
         try {
             await sock.readMessages([message.key]);
             await sock.sendPresenceUpdate("composing", sender);
-            const response = await generateResponse(incomingMessage, sender);
+            const response = await generateResponse(incomingMessage, sender, message);
             await sock.sendMessage(sender, { text: response }, { quoted: message });
+            // console.log(JSON.stringify(message));
         } catch (error) {
             console.error("Error:", error);
             await sock.sendMessage(sender, { text: `Error: Please try again later.` }, { quoted: message });
@@ -158,10 +159,10 @@ async function handleMessageUpsert({ messages, type }) {
 
 let chatHistory = {};
 
-async function generateResponse(incomingMessage, sender) {
+async function generateResponse(incomingMessage, sender, message) { 
     if (!chatHistory[sender]) {
         chatHistory[sender] = [
-            { role: "user", parts: [{ text: "Kamu adalah Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
+            { role: "user", parts: [{ text: `Namaku: ${message.pushName}` }] }, 
             { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
         ];
     }
@@ -175,7 +176,7 @@ async function generateResponse(incomingMessage, sender) {
     const result = await chat.sendMessage(incomingMessage);
     const response = await result.response;
     const text = response.text();
-    console.log(JSON.stringify(chatHistory));
+    // console.log(JSON.stringify(chatHistory));
 
     return text;
 }
