@@ -147,7 +147,7 @@ async function handleMessageUpsert({ messages, type }) {
         try {
             await sock.readMessages([message.key]);
             await sock.sendPresenceUpdate("composing", sender);
-            const response = await generateResponse(incomingMessage, sender); // Mengirimkan sender ke generateResponse
+            const response = await generateResponse(incomingMessage, sender);
             await sock.sendMessage(sender, { text: response }, { quoted: message });
         } catch (error) {
             console.error("Error:", error);
@@ -158,7 +158,7 @@ async function handleMessageUpsert({ messages, type }) {
 
 let chatHistory = {};
 
-async function generateResponse(message, sender) {
+async function generateResponse(incomingMessage, sender) {
     if (!chatHistory[sender]) {
         chatHistory[sender] = [
             { role: "user", parts: [{ text: "Kamu adalah Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
@@ -172,7 +172,7 @@ async function generateResponse(message, sender) {
         history: chatHistory[sender],
     });
 
-    const result = await chat.sendMessage(message);
+    const result = await chat.sendMessage(incomingMessage);
     const response = await result.response;
     const text = response.text();
     console.log(JSON.stringify(chatHistory));
