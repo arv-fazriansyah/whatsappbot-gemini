@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>WA API</title>
-    <meta name="description" content="WhatsApp Api otomatis.">
+    <title>Whatsapp API</title>
+    <meta name="description" content="WhatsApp API.">
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
-    <link rel="icon" type="image/svg" href="./assets/icon.svg"/>
+    <link rel="icon" type="image/svg" href="https://static.whatsapp.net/rsrc.php/v3/yP/r/rYZqPCBaG70.png"/>
     <style>
         body {
             background: rgb(200, 220, 224);
@@ -71,12 +71,19 @@
         .form button:hover {
             background: rgba(88, 104, 191, 0.5);
         }
+
+        /* Style untuk ikon WhatsApp */
+        .whatsapp-icon {
+            width: 20px; /* Sesuaikan ukuran ikon */
+            vertical-align: middle;
+            margin-left: 5px; /* Jarak antara ikon dan teks QR Code */
+        }
     </style>
 </head>
 <body>
     
 <div class="form">
-    <h1>QRCODE</h1>
+    <h1>SCAN QRCODE</h1>
     <div id="qrcode-container">
         <img src="./assets/loader.gif" alt="loading" id="qrcode" style="width: 250px;">
     </div>
