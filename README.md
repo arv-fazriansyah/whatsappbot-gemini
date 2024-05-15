@@ -32,6 +32,15 @@ Berikut adalah panduan instalasi untuk menjalankan WhatsApp Gemini di Termux:
    npm i
    ```
 
+6. Instal dependensi npm yang diperlukan dengan perintah:
+   ```
+   cp .example.env .env
+   ```
+   Change your Gemini API_KEY [here](https://aistudio.google.com/app/apikey)
+   ```
+   API_KEY=YOUR_API_KEY
+   ```
+   
 7. Terakhir, jalankan WhatsApp Gemini dengan perintah:
    ```
    npm run start
