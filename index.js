@@ -162,7 +162,7 @@ let chatHistory = {};
 async function generateResponse(incomingMessage, sender, message) { 
     if (!chatHistory[sender]) {
         chatHistory[sender] = [
-            { role: "user", parts: [{ text: `Namaku: ${message.pushName}` }] }, 
+            { role: "user", parts: [{ text: `Nama saya: ${message.pushName}` }] }, 
             { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
         ];
     }
