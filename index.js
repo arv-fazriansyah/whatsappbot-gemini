@@ -48,11 +48,6 @@ const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
 ];
 
-let chatHistory = [
-    { role: "user", parts: [{ text: "Kamu adalah Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
-    { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
-];
-
 const genAI = new GoogleGenerativeAI(process.env.API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
 
@@ -152,29 +147,35 @@ async function handleMessageUpsert({ messages, type }) {
         try {
             await sock.readMessages([message.key]);
             await sock.sendPresenceUpdate("composing", sender);
-            const response = await generateResponse(incomingMessage);
+            const response = await generateResponse(incomingMessage, sender); // Mengirimkan sender ke generateResponse
             await sock.sendMessage(sender, { text: response }, { quoted: message });
         } catch (error) {
             console.error("Error:", error);
-            await sock.sendMessage(sender, { text: `Error: ${error.message}` }, { quoted: message });
+            await sock.sendMessage(sender, { text: `Error: Please try again later.` }, { quoted: message });
         }
     }
 }
 
-async function generateResponse(message) {
+let chatHistory = {};
+
+async function generateResponse(message, sender) {
+    if (!chatHistory[sender]) {
+        chatHistory[sender] = [
+            { role: "user", parts: [{ text: "Kamu adalah Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
+            { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
+        ];
+    }
+
     const chat = model.startChat({
         generationConfig,
         safetySettings,
-        history: chatHistory,
+        history: chatHistory[sender],
     });
 
     const result = await chat.sendMessage(message);
     const response = await result.response;
     const text = response.text();
-    console.log(text);
-
-    chatHistory.push({ role: "user", parts: [{ text: message }] });
-    chatHistory.push({ role: "model", parts: [{ text }] });
+    console.log(JSON.stringify(chatHistory));
 
     return text;
 }
