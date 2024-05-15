@@ -1,31 +1,21 @@
-const { 
-    default: makeWASocket, 
-    MessageType, 
-    MessageOptions, 
-    Mimetype, 
-    DisconnectReason, 
-    BufferJSON, 
-    AnyMessageContent, 
-    delay, 
-    fetchLatestBaileysVersion, 
-    isJidBroadcast, 
-    makeCacheableSignalKeyStore, 
-    makeInMemoryStore, 
-    MessageRetryMap, 
-    useMultiFileAuthState, 
-    msgRetryCounterMap 
+const {
+    default: makeWASocket,
+    DisconnectReason,
+    fetchLatestBaileysVersion,
+    isJidBroadcast,
+    makeInMemoryStore,
+    useMultiFileAuthState,
 } = require("@whiskeysockets/baileys");
 
 const pino = require("pino");
 const { Boom } = require("@hapi/boom");
-const path = require('path');
-const fs = require('fs');
-const http = require('http');
+const path = require("path");
+const http = require("http");
 const express = require("express");
-const fileUpload = require('express-fileupload');
-const cors = require('cors');
+const fileUpload = require("express-fileupload");
+const cors = require("cors");
 const bodyParser = require("body-parser");
-const dotenv = require('dotenv');
+const dotenv = require("dotenv");
 const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require("@google/generative-ai");
 const qrcode = require("qrcode");
 
@@ -36,18 +26,21 @@ const server = http.createServer(app);
 const io = require("socket.io")(server);
 const port = process.env.PORT || 8000;
 
-// Enable file uploads
 app.use(fileUpload({ createParentPath: true }));
+app.use(cors());
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use("/assets", express.static(path.join(__dirname, "client", "assets")));
+app.get("/scan", (req, res) => res.sendFile(path.join(__dirname, "client", "server.html")));
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "client", "index.html")));
 
-// Configure message generation
 const generationConfig = {
     temperature: 0.9,
     topK: 1,
     topP: 1,
-    maxOutputTokens: 2048
+    maxOutputTokens: 2048,
 };
 
-// Safety settings for model response
 const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -55,7 +48,6 @@ const safetySettings = [
     { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
 ];
 
-// History for the model response
 let chatHistory = [
     { role: "user", parts: [{ text: "Kamu adalah Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
     { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
@@ -64,14 +56,6 @@ let chatHistory = [
 const genAI = new GoogleGenerativeAI(process.env.API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
 
-app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
-
-app.use("/assets", express.static(path.join(__dirname, "client", "assets")));
-app.get("/scan", (req, res) => res.sendFile(path.join(__dirname, "client", "server.html")));
-app.get("/", (req, res) => res.sendFile(path.join(__dirname, "client", "index.html")));
-
 const store = makeInMemoryStore({ logger: pino().child({ level: "silent", stream: "store" }) });
 
 let sock;
@@ -79,57 +63,45 @@ let qr;
 let soket;
 
 async function connectToWhatsApp() {
-    const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
-    const { version, isLatest } = await fetchLatestBaileysVersion();
-    sock = makeWASocket({
-        printQRInTerminal: true,
-        auth: state,
-        logger: pino({ level: "silent" }),
-        version,
-        shouldIgnoreJid: jid => isJidBroadcast(jid),
-    });
-    store.bind(sock.ev);
+    try {
+        const { state, saveCreds } = await useMultiFileAuthState("baileys_auth_info");
+        const { version } = await fetchLatestBaileysVersion();
 
-    sock.ev.on('connection.update', async (update) => {
-        const { connection, lastDisconnect } = update;
-        if (connection === 'close') {
-            const reason = new Boom(lastDisconnect.error).output.statusCode;
-            handleDisconnect(reason);
-        } else if (connection === 'open') {
-            console.log('Opened connection');
-        }
+        sock = makeWASocket({
+            printQRInTerminal: true,
+            auth: state,
+            logger: pino({ level: "silent" }),
+            version,
+            shouldIgnoreJid: isJidBroadcast,
+        });
 
-        if (update.qr) {
-            qr = update.qr;
-            updateQR("qr");
-        } else if (qr === undefined) {
-            updateQR("loading");
-        } else if (update.connection === "open") {
-            updateQR("qrscanned");
-        }
-    });
+        store.bind(sock.ev);
 
-    sock.ev.on("creds.update", saveCreds);
+        sock.ev.on("connection.update", handleConnectionUpdate);
+        sock.ev.on("creds.update", saveCreds);
+        sock.ev.on("messages.upsert", handleMessageUpsert);
+    } catch (error) {
+        console.error("Unexpected error: ", error);
+    }
+}
 
-    sock.ev.on("messages.upsert", async ({ messages, type }) => {
-        if (type === "notify" && !messages[0].key.fromMe) {
-            const messageContent = messages[0].message.conversation || messages[0].message.extendedTextMessage?.text;
-            const incomingMessage = messageContent.toLowerCase();
-            const sender = messages[0].key.remoteJid;
+function handleConnectionUpdate(update) {
+    const { connection, lastDisconnect, qr: qrCode } = update;
 
-            if (!incomingMessage) return;
+    if (connection === "close") {
+        handleDisconnect(new Boom(lastDisconnect.error).output.statusCode);
+    } else if (connection === "open") {
+        console.log("Opened connection");
+    }
 
-            try {
-                await sock.readMessages([messages[0].key]);
-                await sock.sendPresenceUpdate('composing', sender);
-                const response = await handleMessage(incomingMessage);
-                await sock.sendMessage(sender, { text: response }, { quoted: messages[0] });
-            } catch (error) {
-                console.error('Error:', error);
-                await sock.sendMessage(sender, { text: `Error: ${error.message}` }, { quoted: messages[0] });
-            }
-        }
-    });
+    if (qrCode) {
+        qr = qrCode;
+        updateQR("qr");
+    } else if (qr === undefined) {
+        updateQR("loading");
+    } else if (connection === "open") {
+        updateQR("qrscanned");
+    }
 }
 
 function handleDisconnect(reason) {
@@ -167,20 +139,41 @@ function handleDisconnect(reason) {
     }
 }
 
-async function handleMessage(incomingMessage) {
+async function handleMessageUpsert({ messages, type }) {
+    if (type === "notify" && !messages[0].key.fromMe) {
+        const message = messages[0];
+        const messageContent = message.message.conversation || message.message.extendedTextMessage?.text;
+
+        if (!messageContent) return;
+
+        const incomingMessage = messageContent.toLowerCase();
+        const sender = message.key.remoteJid;
+
+        try {
+            await sock.readMessages([message.key]);
+            await sock.sendPresenceUpdate("composing", sender);
+            const response = await generateResponse(incomingMessage);
+            await sock.sendMessage(sender, { text: response }, { quoted: message });
+        } catch (error) {
+            console.error("Error:", error);
+            await sock.sendMessage(sender, { text: `Error: ${error.message}` }, { quoted: message });
+        }
+    }
+}
+
+async function generateResponse(message) {
     const chat = model.startChat({
         generationConfig,
         safetySettings,
         history: chatHistory,
     });
 
-    const result = await chat.sendMessage(incomingMessage);
+    const result = await chat.sendMessage(message);
     const response = await result.response;
     const text = response.text();
     console.log(text);
 
-    // Update chat history with the latest user message and the model's response
-    chatHistory.push({ role: "user", parts: [{ text: incomingMessage }] });
+    chatHistory.push({ role: "user", parts: [{ text: message }] });
     chatHistory.push({ role: "model", parts: [{ text }] });
 
     return text;
@@ -195,36 +188,34 @@ io.on("connection", async (socket) => {
     }
 });
 
-const isConnected = () => {
-    return sock && sock.user;
-};
+const isConnected = () => !!sock?.user;
 
 const updateQR = (data) => {
-    switch (data) {
-        case "qr":
+    const status = {
+        qr: async () => {
             qrcode.toDataURL(qr, (err, url) => {
                 soket?.emit("qr", url);
                 soket?.emit("log", "QR Code received, please scan!");
             });
-            break;
-        case "connected":
+        },
+        connected: () => {
             soket?.emit("qrstatus", "./assets/check.svg");
             soket?.emit("log", "WhatsApp connected!");
-            break;
-        case "qrscanned":
+        },
+        qrscanned: () => {
             soket?.emit("qrstatus", "./assets/check.svg");
             soket?.emit("log", "QR Code has been scanned!");
-            break;
-        case "loading":
+        },
+        loading: () => {
             soket?.emit("qrstatus", "./assets/loader.gif");
             soket?.emit("log", "Registering QR Code, please wait!");
-            break;
-        default:
-            break;
-    }
+        },
+    };
+
+    if (status[data]) status[data]();
 };
 
-connectToWhatsApp().catch(err => console.log("Unexpected error: " + err));
+connectToWhatsApp();
 
 server.listen(port, () => {
     console.log("Server running on port: " + port);
