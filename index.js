@@ -177,7 +177,8 @@ async function generateResponse(incomingMessage, sender, message) {
 
     const result = await chat.sendMessage(incomingMessage);
     const response = await result.response;
-    const text = response.text();
+    let text = response.text();
+    text = text.replace(/\*\*/g, '*');
 
     return text;
 }
