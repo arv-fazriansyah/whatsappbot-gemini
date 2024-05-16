@@ -35,10 +35,10 @@ app.get("/scan", (req, res) => res.sendFile(path.join(__dirname, "client", "serv
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "client", "index.html")));
 
 const generationConfig = {
-    temperature: 0.7,
-    topK: 20,
-    topP: 0.9,
-    maxOutputTokens: 150,
+    temperature: 0.9,
+    topP: 0.1,
+    topK: 16,
+    maxOutputTokens: 2048,
 };
 
 const safetySettings = [
