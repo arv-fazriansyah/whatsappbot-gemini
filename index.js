@@ -153,19 +153,20 @@ async function handleMessageUpsert({ messages, type }) {
 
         const incomingMessage = messageContent.toLowerCase();
         const sender = message.key.remoteJid;
+        const formattedSender = sender.match(/\d+/)[0];
+        const formattedSenderWithPlus = `+${formattedSender}`;
 
         try {
             await sock.readMessages([message.key]);
             await sock.sendPresenceUpdate("composing", sender);
 
-            // Handling the /new command to delete history
             if (incomingMessage === "/new") {
                 delete chatHistory[sender];
-                await sock.sendMessage(sender, { text: "Chat history has been deleted." }, { quoted: message });
+                await sock.sendMessage(sender, { text: `Conversation ID: ${formattedSenderWithPlus}` }, { quoted: message });
                 return;
             }
 
-            const response = await generateResponse(incomingMessage, sender, message);
+            const response = await generateResponse(incomingMessage, formattedSenderWithPlus, message);
 
             if (!response || response.trim() === "") {
                 delete chatHistory[sender];
@@ -176,7 +177,7 @@ async function handleMessageUpsert({ messages, type }) {
             await sock.sendMessage(sender, { text: response }, { quoted: message });
         } catch (error) {
             console.error("Error:", error);
-            await sock.sendMessage(sender, { text: `Server bermasalah.` }, { quoted: message });
+            await sock.sendMessage(sender, { text: `Server bermasalah. Silahkan coba lagi nanti.` }, { quoted: message });
         }
     }
 }
@@ -184,7 +185,7 @@ async function handleMessageUpsert({ messages, type }) {
 async function generateResponse(incomingMessage, sender, message) { 
     if (!chatHistory[sender]) {
         chatHistory[sender] = [
-            { role: "user", parts: [{ text: `Nama saya: ${message.pushName}` }] }, 
+            { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}` }] }, 
             { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
         ];
     }
