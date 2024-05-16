@@ -147,7 +147,7 @@ function clearHistoryAndReconnect() {
 async function handleMessageUpsert({ messages, type }) {
     if (type === "notify" && messages.length > 0 && !messages[0].key.fromMe) {
         const message = messages[0];
-        const messageContent = message.message.conversation || (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
+        const messageContent = message.message.conversation || message.message.extendedTextMessage.text;
 
         if (!messageContent) return;
 
@@ -166,15 +166,13 @@ async function handleMessageUpsert({ messages, type }) {
                 return;
             }
 
-            const response = await generateResponse(incomingMessage, formattedSenderWithPlus, message);
-
-            if (!response || response.trim() === "") {
+            const response = await generateResponse(incomingMessage, sender, message);
+            if (response === "") {
                 delete chatHistory[sender];
                 await sock.sendMessage(sender, { text: "Pesan tidak dapat diproses." }, { quoted: message });
-                return;
+            } else {
+                await sock.sendMessage(sender, { text: response }, { quoted: message });
             }
-
-            await sock.sendMessage(sender, { text: response }, { quoted: message });
         } catch (error) {
             console.error("Error:", error);
             await sock.sendMessage(sender, { text: `Server bermasalah. Silahkan coba lagi nanti.` }, { quoted: message });
@@ -182,10 +180,10 @@ async function handleMessageUpsert({ messages, type }) {
     }
 }
 
-async function generateResponse(incomingMessage, sender, message) { 
+async function generateResponse(incomingMessage, sender, message) {
     if (!chatHistory[sender]) {
         chatHistory[sender] = [
-            { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}` }] }, 
+            { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}` }] },
             { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
         ];
     }
