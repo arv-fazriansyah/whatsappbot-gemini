@@ -1,23 +1,22 @@
+const express = require("express");
+const http = require("http");
+const path = require("path");
+const bodyParser = require("body-parser");
+const fileUpload = require("express-fileupload");
+const cors = require("cors");
+const pino = require("pino");
+const { Boom } = require("@hapi/boom");
+const qrcode = require("qrcode");
+const dotenv = require("dotenv");
+const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require("@google/generative-ai");
 const {
-    default: makeWASocket,
+    makeWASocket,
     DisconnectReason,
     fetchLatestBaileysVersion,
     isJidBroadcast,
     makeInMemoryStore,
     useMultiFileAuthState,
 } = require("@whiskeysockets/baileys");
-
-const pino = require("pino");
-const { Boom } = require("@hapi/boom");
-const path = require("path");
-const http = require("http");
-const express = require("express");
-const fileUpload = require("express-fileupload");
-const cors = require("cors");
-const bodyParser = require("body-parser");
-const dotenv = require("dotenv");
-const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require("@google/generative-ai");
-const qrcode = require("qrcode");
 
 dotenv.config();
 
@@ -106,32 +105,14 @@ function handleConnectionUpdate(update) {
 function handleDisconnect(reason, lastDisconnect) {
     switch (reason) {
         case DisconnectReason.badSession:
-            console.log("Bad Session File, Please Delete session and Scan Again");
-            sock.logout();
-            break;
         case DisconnectReason.connectionClosed:
-            console.log("Connection closed, reconnecting...");
-            connectToWhatsApp();
-            break;
         case DisconnectReason.connectionLost:
-            console.log("Connection Lost from Server, reconnecting...");
-            connectToWhatsApp();
-            break;
         case DisconnectReason.connectionReplaced:
-            console.log("Connection Replaced, Another New Session Opened, Please Close Current Session First");
-            sock.logout();
-            break;
         case DisconnectReason.loggedOut:
-            console.log("Device Logged Out, Please Delete session and Scan Again.");
-            sock.logout();
-            break;
         case DisconnectReason.restartRequired:
-            console.log("Restart Required, Restarting...");
-            connectToWhatsApp();
-            break;
         case DisconnectReason.timedOut:
-            console.log("Connection TimedOut, Reconnecting...");
-            connectToWhatsApp();
+            console.log(`Reconnecting due to: ${reason}`);
+            clearHistoryAndReconnect();
             break;
         default:
             console.log(`Unknown DisconnectReason: ${reason}|${lastDisconnect?.error}`);
@@ -162,32 +143,32 @@ async function handleMessageUpsert({ messages, type }) {
 
             if (incomingMessage === "/new") {
                 delete chatHistory[sender];
-                await sock.sendMessage(sender, { text: `Conversation ID: ${formattedSenderWithPlus}` }, { quoted: message });
+                await sendWhatsAppMessage(sender, `Conversation ID: ${formattedSenderWithPlus}`, message);
                 return;
             }
 
             const response = await generateResponse(incomingMessage, sender, message);
             if (response === "") {
                 delete chatHistory[sender];
-                await sock.sendMessage(sender, { text: "Pesan tidak dapat diproses." }, { quoted: message });
+                await sendWhatsAppMessage(sender, "Pesan tidak dapat diproses.", message);
             } else {
-                await sock.sendMessage(sender, { text: response }, { quoted: message });
+                await sendWhatsAppMessage(sender, response, message);
             }
         } catch (error) {
             console.error("Error:", error);
-            await sock.sendMessage(sender, { text: `Server bermasalah. Silahkan coba lagi nanti.` }, { quoted: message });
+            await sendWhatsAppMessage(sender, "Server bermasalah. Silahkan coba lagi nanti.", message);
         }
     }
 }
 
-async function generateResponse(incomingMessage, sender, message) {
+async function generateResponse(incomingMessage, sender, message) { 
     if (!chatHistory[sender]) {
         chatHistory[sender] = [
-            { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}` }] },
+            { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}` }] }, 
             { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
         ];
     }
-
+    
     const chat = model.startChat({
         generationConfig,
         safetySettings,
@@ -199,6 +180,10 @@ async function generateResponse(incomingMessage, sender, message) {
     const text = response.text();
 
     return text;
+}
+
+async function sendWhatsAppMessage(recipient, text, quotedMessage) {
+    await sock.sendMessage(recipient, { text }, { quoted: quotedMessage });
 }
 
 io.on("connection", async (socket) => {
@@ -242,3 +227,4 @@ connectToWhatsApp();
 server.listen(port, () => {
     console.log("Server running on port: " + port);
 });
+
