@@ -8,7 +8,7 @@ const pino = require("pino");
 const { Boom } = require("@hapi/boom");
 const qrcode = require("qrcode");
 const dotenv = require("dotenv");
-const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } = require("@google/generative-ai");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const {
     makeWASocket,
     DisconnectReason,
@@ -39,13 +39,6 @@ const generationConfig = {
     topK: 16,
     maxOutputTokens: 2048,
 };
-
-const safetySettings = [
-    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-];
 
 const genAI = new GoogleGenerativeAI(process.env.API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
@@ -171,7 +164,6 @@ async function generateResponse(incomingMessage, sender, message) {
 
     const chat = model.startChat({
         generationConfig,
-        safetySettings,
         history: chatHistory[sender],
     });
 
@@ -228,4 +220,3 @@ connectToWhatsApp();
 server.listen(port, () => {
     console.log("Server running on port: " + port);
 });
-
