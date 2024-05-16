@@ -128,7 +128,7 @@ function clearHistoryAndReconnect() {
 async function handleMessageUpsert({ messages, type }) {
     if (type === "notify" && messages.length > 0 && !messages[0].key.fromMe) {
         const message = messages[0];
-        const messageContent = message.message.conversation || message.message.extendedTextMessage.text;
+        const messageContent = message.message.conversation || (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
 
         if (!messageContent) return;
 
@@ -168,7 +168,7 @@ async function generateResponse(incomingMessage, sender, message) {
             { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
         ];
     }
-    
+
     const chat = model.startChat({
         generationConfig,
         safetySettings,
@@ -225,6 +225,6 @@ const updateQR = (data) => {
 connectToWhatsApp();
 
 server.listen(port, () => {
-    console.log("Server running on port: " + port);
+    console.log("Server running on port:" + port);
 });
 
