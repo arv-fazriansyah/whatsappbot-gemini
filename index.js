@@ -57,6 +57,8 @@ let sock;
 let qr;
 let soket;
 
+let chatHistory = {};
+
 async function connectToWhatsApp() {
     try {
         const { state, saveCreds } = await useMultiFileAuthState("baileys_auth_info");
@@ -77,6 +79,7 @@ async function connectToWhatsApp() {
         sock.ev.on("messages.upsert", handleMessageUpsert);
     } catch (error) {
         console.error("Unexpected error: ", error);
+        clearHistoryAndReconnect();
     }
 }
 
@@ -84,7 +87,8 @@ function handleConnectionUpdate(update) {
     const { connection, lastDisconnect, qr: qrCode } = update;
 
     if (connection === "close") {
-        handleDisconnect(new Boom(lastDisconnect.error).output.statusCode);
+        const reason = new Boom(lastDisconnect?.error).output.statusCode;
+        handleDisconnect(reason, lastDisconnect);
     } else if (connection === "open") {
         console.log("Opened connection");
     }
@@ -99,7 +103,7 @@ function handleConnectionUpdate(update) {
     }
 }
 
-function handleDisconnect(reason) {
+function handleDisconnect(reason, lastDisconnect) {
     switch (reason) {
         case DisconnectReason.badSession:
             console.log("Bad Session File, Please Delete session and Scan Again");
@@ -130,8 +134,14 @@ function handleDisconnect(reason) {
             connectToWhatsApp();
             break;
         default:
-            sock.end(`Unknown DisconnectReason: ${reason}|${lastDisconnect.error}`);
+            console.log(`Unknown DisconnectReason: ${reason}|${lastDisconnect?.error}`);
+            clearHistoryAndReconnect();
     }
+}
+
+function clearHistoryAndReconnect() {
+    chatHistory = {};
+    connectToWhatsApp();
 }
 
 async function handleMessageUpsert({ messages, type }) {
@@ -147,17 +157,29 @@ async function handleMessageUpsert({ messages, type }) {
         try {
             await sock.readMessages([message.key]);
             await sock.sendPresenceUpdate("composing", sender);
+
+            // Handling the /new command to delete history
+            if (incomingMessage === "/new") {
+                delete chatHistory[sender];
+                await sock.sendMessage(sender, { text: "Chat history has been deleted." }, { quoted: message });
+                return;
+            }
+
             const response = await generateResponse(incomingMessage, sender, message);
+
+            if (!response || response.trim() === "") {
+                delete chatHistory[sender];
+                await sock.sendMessage(sender, { text: "Pesan tidak dapat diproses." }, { quoted: message });
+                return;
+            }
+
             await sock.sendMessage(sender, { text: response }, { quoted: message });
-            // console.log(JSON.stringify(message));
         } catch (error) {
             console.error("Error:", error);
-            await sock.sendMessage(sender, { text: `Error: Please try again later.` }, { quoted: message });
+            await sock.sendMessage(sender, { text: `Server bermasalah.` }, { quoted: message });
         }
     }
 }
-
-let chatHistory = {};
 
 async function generateResponse(incomingMessage, sender, message) { 
     if (!chatHistory[sender]) {
@@ -176,7 +198,6 @@ async function generateResponse(incomingMessage, sender, message) {
     const result = await chat.sendMessage(incomingMessage);
     const response = await result.response;
     const text = response.text();
-    // console.log(JSON.stringify(chatHistory));
 
     return text;
 }
