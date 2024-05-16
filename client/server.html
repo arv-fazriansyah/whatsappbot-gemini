@@ -9,16 +9,19 @@
     <link rel="icon" type="image/svg" href="https://static.whatsapp.net/rsrc.php/v3/yP/r/rYZqPCBaG70.png"/>
     <style>
         body {
-            background: rgb(200, 220, 224);
+            background: #121212; /* Dark mode background color */
+            color: #fff; /* Text color */
+            font-family: Helvetica, sans-serif;
         }
 
         .form {
-            font-family: Helvetica, sans-serif;
             max-width: 400px;
             margin: 50px auto 0;
             text-align: center;
             padding: 16px;
-            background: #ffffff;
+            background: #212121; /* Dark mode form background color */
+            border-radius: 10px; /* Rounded corners */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Shadow effect */
         }
 
         .form h1 {
@@ -29,18 +32,20 @@
             color: #fff;
             margin: -16px -16px 16px -16px;
             font-size: 25px;
+            border-top-left-radius: 10px; /* Rounded corners for header */
+            border-top-right-radius: 10px;
         }
 
         .form input[type="text"],
         .form input[type="url"] {
             box-sizing: border-box;
             width: 100%;
-            background: #fff;
+            background: #333; /* Dark mode input background color */
             margin-bottom: 4%;
-            border: 1px solid #ccc;
+            border: 1px solid #555; /* Dark mode input border color */
             padding: 4%;
             font-size: 17px;
-            color: rgb(9, 61, 125);
+            color: #fff; /* Input text color */
         }
 
         .form input[type="text"]:focus,
@@ -52,31 +57,20 @@
 
         .form button {
             box-sizing: border-box;
-            -webkit-box-sizing: border-box;
-            -moz-box-sizing: border-box;
             width: 180px;
             margin: 0 auto;
             padding: 3%;
-            background: #0853b6;
+            background: #2196F3; /* Blue color for button */
             border: none;
             border-radius: 3px;
             font-size: 17px;
-            border-top-style: none;
-            border-right-style: none;
-            border-left-style: none;
             color: #fff;
             cursor: pointer;
+            transition: background-color 0.3s ease; /* Smooth transition */
         }
 
         .form button:hover {
-            background: rgba(88, 104, 191, 0.5);
-        }
-
-        /* Style untuk ikon WhatsApp */
-        .whatsapp-icon {
-            width: 20px; /* Sesuaikan ukuran ikon */
-            vertical-align: middle;
-            margin-left: 5px; /* Jarak antara ikon dan teks QR Code */
+            background: #0b7dda; /* Darker blue on hover */
         }
     </style>
 </head>
