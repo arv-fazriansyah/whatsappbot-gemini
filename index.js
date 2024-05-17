@@ -50,7 +50,7 @@ let qr;
 let soket;
 let chatHistory = {};
 
-const allowedGroupJIDs = process.env.PORT;
+const allowedGroupJIDs = process.env.GROUP_ID;
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
