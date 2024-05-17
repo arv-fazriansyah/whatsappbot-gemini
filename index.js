@@ -48,7 +48,6 @@ const store = makeInMemoryStore({ logger: pino().child({ level: "silent", stream
 let sock;
 let qr;
 let soket;
-
 let chatHistory = {};
 
 async function connectToWhatsApp() {
@@ -70,47 +69,25 @@ async function connectToWhatsApp() {
         sock.ev.on("creds.update", saveCreds);
         sock.ev.on("messages.upsert", handleMessageUpsert);
     } catch (error) {
-        console.error("Unexpected error: ", error);
+        console.error("Unexpected error:", error);
         clearHistoryAndReconnect();
     }
 }
 
-function handleConnectionUpdate(update) {
-    const { connection, lastDisconnect, qr: qrCode } = update;
-
+function handleConnectionUpdate({ connection, lastDisconnect, qr: qrCode }) {
     if (connection === "close") {
-        const reason = new Boom(lastDisconnect?.error).output.statusCode;
-        handleDisconnect(reason, lastDisconnect);
+        handleDisconnect(new Boom(lastDisconnect?.error).output.statusCode);
     } else if (connection === "open") {
         console.log("Opened connection");
     }
 
-    if (qrCode) {
-        qr = qrCode;
-        updateQR("qr");
-    } else if (qr === undefined) {
-        updateQR("loading");
-    } else if (connection === "open") {
-        updateQR("qrscanned");
-    }
+    qr = qrCode || qr;
+    updateQR(connection === "open" ? "qrscanned" : qr ? "qr" : "loading");
 }
 
-function handleDisconnect(reason, lastDisconnect) {
-    switch (reason) {
-        case DisconnectReason.badSession:
-        case DisconnectReason.connectionClosed:
-        case DisconnectReason.connectionLost:
-        case DisconnectReason.connectionReplaced:
-        case DisconnectReason.loggedOut:
-        case DisconnectReason.restartRequired:
-        case DisconnectReason.timedOut:
-            console.log(`Reconnecting due to: ${reason}`);
-            clearHistoryAndReconnect();
-            break;
-        default:
-            console.log(`Unknown DisconnectReason: ${reason}|${lastDisconnect?.error}`);
-            clearHistoryAndReconnect();
-    }
+function handleDisconnect(reason) {
+    console.log(`Connection closed, reason: ${DisconnectReason[reason] || reason}`);
+    clearHistoryAndReconnect();
 }
 
 function clearHistoryAndReconnect() {
@@ -119,85 +96,63 @@ function clearHistoryAndReconnect() {
 }
 
 async function handleMessageUpsert({ messages, type }) {
-    if (type === "notify" && messages.length > 0 && !messages[0].key.fromMe) {
-        const message = messages[0];
-        const messageContent = message.message.conversation || (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
+    if (type !== "notify" || messages.length === 0 || messages[0].key.fromMe) return;
 
-        if (!messageContent) return;
+    const message = messages[0];
+    const messageContent = message.message.conversation || (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
+    if (!messageContent) return;
 
-        const incomingMessage = messageContent.toLowerCase();
-        const sender = message.key.remoteJid;
-        const formattedSender = sender.match(/\d+/)[0];
-        const formattedSenderWithPlus = `+${formattedSender}`;
+    const incomingMessage = messageContent.toLowerCase();
+    const sender = message.key.remoteJid;
+    const formattedSender = `+${sender.match(/\d+/)[0]}`;
 
-        try {
-            await sock.readMessages([message.key]);
-            await sock.sendPresenceUpdate("composing", sender);
+    try {
+        await sock.readMessages([message.key]);
+        await sock.sendPresenceUpdate("composing", sender);
 
-            if (incomingMessage === "/new") {
-                delete chatHistory[sender];
-                await sendWhatsAppMessage(sender, `Conversation ID: ${formattedSenderWithPlus}`, message);
-                return;
-            }
-
-            const response = await generateResponse(incomingMessage, sender, message);
-            if (response === "") {
-                delete chatHistory[sender];
-                await sendWhatsAppMessage(sender, "Pesan tidak dapat diproses.", message);
-            } else {
-                await sendWhatsAppMessage(sender, response, message);
-            }
-        } catch (error) {
-            console.error("Error:", error);
-            await sendWhatsAppMessage(sender, "Server bermasalah. Silahkan coba lagi nanti.", message);
+        if (incomingMessage === "/new") {
+            delete chatHistory[sender];
+            await sock.sendMessage(sender, { text: `Conversation ID: ${formattedSender}` }, { quoted: message });
+            return;
         }
+
+        if (!chatHistory[sender]) {
+            chatHistory[sender] = [
+                { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}` }] },
+                { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
+            ];
+        }
+
+        const chat = model.startChat({ generationConfig, history: chatHistory[sender] });
+        const result = await chat.sendMessage(incomingMessage);
+        const response = (await result.response).text().replace(/\*\*/g, '*');
+
+        if (!response) {
+            throw new Error("Empty response");
+        } else {
+            await sock.sendMessage(sender, { text: response }, { quoted: message });
+        }
+    } catch (error) {
+        console.error(error);
+        delete chatHistory[sender];
+        await sock.sendMessage(sender, { text: "Server bermasalah. Silahkan coba lagi nanti." }, { quoted: message });
     }
 }
 
-async function generateResponse(incomingMessage, sender, message) { 
-    if (!chatHistory[sender]) {
-        chatHistory[sender] = [
-            { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}` }] }, 
-            { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
-        ];
-    }
-
-    const chat = model.startChat({
-        generationConfig,
-        history: chatHistory[sender],
-    });
-
-    const result = await chat.sendMessage(incomingMessage);
-    const response = await result.response;
-    let text = response.text();
-    text = text.replace(/\*\*/g, '*');
-
-    return text;
-}
-
-async function sendWhatsAppMessage(recipient, text, quotedMessage) {
-    await sock.sendMessage(recipient, { text }, { quoted: quotedMessage });
-}
-
-io.on("connection", async (socket) => {
+io.on("connection", (socket) => {
     soket = socket;
-    if (isConnected()) {
-        updateQR("connected");
-    } else if (qr) {
-        updateQR("qr");
-    }
+    updateQR(isConnected() ? "connected" : qr ? "qr" : "loading");
 });
 
 const isConnected = () => !!sock?.user;
 
-const updateQR = (data) => {
-    const status = {
-        qr: async () => {
-            qrcode.toDataURL(qr, (err, url) => {
-                soket?.emit("qr", url);
-                soket?.emit("log", "QR Code received, please scan!");
-            });
-        },
+const updateQR = (status) => {
+    const statusActions = {
+        qr: () => qrcode.toDataURL(qr, (err, url) => {
+            if (err) return console.error(err);
+            soket?.emit("qr", url);
+            soket?.emit("log", "QR Code received, please scan!");
+        }),
         connected: () => {
             soket?.emit("qrstatus", "./assets/check.svg");
             soket?.emit("log", "WhatsApp connected!");
@@ -212,11 +167,15 @@ const updateQR = (data) => {
         },
     };
 
-    if (status[data]) status[data]();
+    if (statusActions[status]) statusActions[status]();
 };
 
-connectToWhatsApp();
+connectToWhatsApp().catch((error) => console.error("Failed to connect to WhatsApp:", error));
 
 server.listen(port, () => {
-    console.log("Server running on port: " + port);
+    console.log("Server running on port:", port);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
