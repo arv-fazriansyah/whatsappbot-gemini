@@ -13,11 +13,11 @@ const {
 } = require("@whiskeysockets/baileys");
 
 const app = express();
+const cors = require('cors');
+const path = require('path');
+const dotenv = require("dotenv");
 const server = http.createServer(app);
 const io = require("socket.io")(server);
-const dotenv = require("dotenv");
-const path = require('path');
-const cors = require('cors');
 const bodyParser = require("body-parser");
 
 dotenv.config();
