@@ -50,8 +50,10 @@ let qr;
 let soket;
 let chatHistory = {};
 
+const allowedGroupJIDs = ['120363300173897313@g.us'];
+
 async function connectToWhatsApp() {
-    const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info')
+    const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
     let { version, isLatest } = await fetchLatestBaileysVersion();
     sock = makeWASocket({
         printQRInTerminal: true,
@@ -61,7 +63,7 @@ async function connectToWhatsApp() {
         shouldIgnoreJid: jid => isJidBroadcast(jid),
     });
     store.bind(sock.ev);
-    sock.multi = true
+    sock.multi = true;
     sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
         if (connection === 'close') {
@@ -75,7 +77,7 @@ async function connectToWhatsApp() {
             }
         } else if (connection === 'open') {
             console.log('opened connection');
-            let groups = Object.values(await sock.groupFetchAllParticipating())
+            let groups = Object.values(await sock.groupFetchAllParticipating());
             for (let group of groups) {
                 console.log("id_group: " + group.id + " || Nama Group: " + group.subject);
             }
@@ -98,15 +100,21 @@ async function connectToWhatsApp() {
         if (type === "notify") {
             if (!messages[0].key.fromMe) {
                 const message = messages[0];
-                const messageContent = message.message.conversation || (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
-                if (!messageContent) return;             
-                const incomingMessage = messageContent.toLowerCase();
                 const sender = message.key.remoteJid;
+
+                // Check if the message is from an allowed group
+                if (!allowedGroupJIDs.includes(sender)) {
+                    return;
+                }
+
+                const messageContent = message.message.conversation || (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
+                if (!messageContent) return;
+                const incomingMessage = messageContent.toLowerCase();
                 const formattedSender = `+${sender.match(/\d+/)[0]}`;
-    
+
                 await sock.readMessages([message.key]);
                 await sock.sendPresenceUpdate("composing", sender);
-    
+
                 if (!messages[0].key.fromMe && incomingMessage === "/new") {
                     await sock.sendMessage(sender, { text: `Conversation ID: ${formattedSender}` }, { quoted: message });
                 } else {
@@ -116,11 +124,11 @@ async function connectToWhatsApp() {
                             { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
                         ];
                     }
-    
+
                     const chat = model.startChat({ generationConfig, history: chatHistory[sender] });
                     const result = await chat.sendMessage(incomingMessage);
                     const response = (await result.response).text().replace(/\*\*/g, '*');
-    
+
                     if (!response) {
                         await sock.sendMessage(sender, { text: "Maaf, terjadi kesalahan. Silakan coba lagi." }, { quoted: message });
                         delete chatHistory[sender];
