@@ -51,131 +51,129 @@ let soket;
 let chatHistory = {};
 
 async function connectToWhatsApp() {
-    try {
-        const { state, saveCreds } = await useMultiFileAuthState("baileys_auth_info");
-        const { version } = await fetchLatestBaileysVersion();
-
-        sock = makeWASocket({
-            printQRInTerminal: true,
-            auth: state,
-            logger: pino({ level: "silent" }),
-            version,
-            shouldIgnoreJid: isJidBroadcast,
-        });
-
-        store.bind(sock.ev);
-
-        sock.ev.on("connection.update", handleConnectionUpdate);
-        sock.ev.on("creds.update", saveCreds);
-        sock.ev.on("messages.upsert", handleMessageUpsert);
-    } catch (error) {
-        console.error("Unexpected error:", error);
-        clearHistoryAndReconnect();
-    }
-}
-
-function handleConnectionUpdate({ connection, lastDisconnect, qr: qrCode }) {
-    if (connection === "close") {
-        handleDisconnect(new Boom(lastDisconnect?.error).output.statusCode);
-    } else if (connection === "open") {
-        console.log("Opened connection");
-    }
-
-    qr = qrCode || qr;
-    updateQR(connection === "open" ? "qrscanned" : qr ? "qr" : "loading");
-}
-
-function handleDisconnect(reason) {
-    console.log(`Connection closed, reason: ${DisconnectReason[reason] || reason}`);
-    clearHistoryAndReconnect();
-}
-
-function clearHistoryAndReconnect() {
-    chatHistory = {};
-    connectToWhatsApp();
-}
-
-async function handleMessageUpsert({ messages, type }) {
-    if (type !== "notify" || messages.length === 0 || messages[0].key.fromMe) return;
-
-    const message = messages[0];
-    const messageContent = message.message.conversation || (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
-    if (!messageContent) return;
-
-    const incomingMessage = messageContent.toLowerCase();
-    const sender = message.key.remoteJid;
-    const formattedSender = `+${sender.match(/\d+/)[0]}`;
-
-    try {
-        await sock.readMessages([message.key]);
-        await sock.sendPresenceUpdate("composing", sender);
-
-        if (incomingMessage === "/new") {
-            delete chatHistory[sender];
-            await sock.sendMessage(sender, { text: `Conversation ID: ${formattedSender}` }, { quoted: message });
+    const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info')
+    let { version, isLatest } = await fetchLatestBaileysVersion();
+    sock = makeWASocket({
+        printQRInTerminal: true,
+        auth: state,
+        logger: pino({ level: "silent" }),
+        version,
+        shouldIgnoreJid: jid => isJidBroadcast(jid),
+    });
+    store.bind(sock.ev);
+    sock.multi = true
+    sock.ev.on('connection.update', async (update) => {
+        const { connection, lastDisconnect } = update;
+        if (connection === 'close') {
+            let reason = new Boom(lastDisconnect.error).output.statusCode;
+            if (reason === DisconnectReason.badSession) {
+                console.log(`Bad Session File, Please Delete ${session} and Scan Again`);
+                sock.logout();
+            } else {
+                console.log("Unhandled Disconnect Reason: ", reason);
+                sock.logout();
+            }
+        } else if (connection === 'open') {
+            console.log('opened connection');
+            let groups = Object.values(await sock.groupFetchAllParticipating())
+            for (let group of groups) {
+                console.log("id_group: " + group.id + " || Nama Group: " + group.subject);
+            }
             return;
         }
-
-        if (!chatHistory[sender]) {
-            chatHistory[sender] = [
-                { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}` }] },
-                { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
-            ];
-        }
-
-        const chat = model.startChat({ generationConfig, history: chatHistory[sender] });
-        const result = await chat.sendMessage(incomingMessage);
-        const response = (await result.response).text().replace(/\*\*/g, '*');
-
-        if (!response) {
-            throw new Error("Empty response");
+        if (update.qr) {
+            qr = update.qr;
+            updateQR("qr");
+        } else if (qr === undefined) {
+            updateQR("loading");
         } else {
-            await sock.sendMessage(sender, { text: response }, { quoted: message });
+            if (update.connection === "open") {
+                updateQR("qrscanned");
+                return;
+            }
         }
-    } catch (error) {
-        console.error(error);
-        delete chatHistory[sender];
-        await sock.sendMessage(sender, { text: "Server bermasalah. Silahkan coba lagi nanti." }, { quoted: message });
-    }
+    });
+    sock.ev.on("creds.update", saveCreds);
+    sock.ev.on("messages.upsert", async ({ messages, type }) => {
+        if (type === "notify") {
+            if (!messages[0].key.fromMe) {
+                const message = messages[0];
+                const messageContent = message.message.conversation || (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
+                if (!messageContent) return;             
+                const incomingMessage = messageContent.toLowerCase();
+                const sender = message.key.remoteJid;
+                const formattedSender = `+${sender.match(/\d+/)[0]}`;
+    
+                await sock.readMessages([message.key]);
+                await sock.sendPresenceUpdate("composing", sender);
+    
+                if (!messages[0].key.fromMe && incomingMessage === "/new") {
+                    await sock.sendMessage(sender, { text: `Conversation ID: ${formattedSender}` }, { quoted: message });
+                } else {
+                    if (!chatHistory[sender]) {
+                        chatHistory[sender] = [
+                            { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}` }] },
+                            { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
+                        ];
+                    }
+    
+                    const chat = model.startChat({ generationConfig, history: chatHistory[sender] });
+                    const result = await chat.sendMessage(incomingMessage);
+                    const response = (await result.response).text().replace(/\*\*/g, '*');
+    
+                    if (!response) {
+                        await sock.sendMessage(sender, { text: "Maaf, terjadi kesalahan. Silakan coba lagi." }, { quoted: message });
+                        delete chatHistory[sender];
+                    } else {
+                        console.log(JSON.stringify(chatHistory[sender]));
+                        await sock.sendMessage(sender, { text: response }, { quoted: message });
+                    }
+                }
+            }
+        }
+    });
 }
 
-io.on("connection", (socket) => {
+io.on("connection", async (socket) => {
     soket = socket;
-    updateQR(isConnected() ? "connected" : qr ? "qr" : "loading");
+    if (isConnected()) {
+        updateQR("connected");
+    } else if (qr) {
+        updateQR("qr");
+    }
 });
 
-const isConnected = () => !!sock?.user;
-
-const updateQR = (status) => {
-    const statusActions = {
-        qr: () => qrcode.toDataURL(qr, (err, url) => {
-            if (err) return console.error(err);
-            soket?.emit("qr", url);
-            soket?.emit("log", "QR Code received, please scan!");
-        }),
-        connected: () => {
-            soket?.emit("qrstatus", "./assets/check.svg");
-            soket?.emit("log", "WhatsApp connected!");
-        },
-        qrscanned: () => {
-            soket?.emit("qrstatus", "./assets/check.svg");
-            soket?.emit("log", "QR Code has been scanned!");
-        },
-        loading: () => {
-            soket?.emit("qrstatus", "./assets/loader.gif");
-            soket?.emit("log", "Registering QR Code, please wait!");
-        },
-    };
-
-    if (statusActions[status]) statusActions[status]();
+const isConnected = () => {
+    return (sock.user);
 };
 
-connectToWhatsApp().catch((error) => console.error("Failed to connect to WhatsApp:", error));
+const updateQR = (data) => {
+    switch (data) {
+        case "qr":
+            qrcode.toDataURL(qr, (err, url) => {
+                soket?.emit("qr", url);
+                soket?.emit("log", "QR Code received, please scan!");
+            });
+            break;
+        case "connected":
+            soket?.emit("qrstatus", "./assets/check.svg");
+            soket?.emit("log", "WhatsApp terhubung!");
+            break;
+        case "qrscanned":
+            soket?.emit("qrstatus", "./assets/check.svg");
+            soket?.emit("log", "QR Code Telah discan!");
+            break;
+        case "loading":
+            soket?.emit("qrstatus", "./assets/loader.gif");
+            soket?.emit("log", "Registering QR Code , please wait!");
+            break;
+        default:
+            break;
+    }
+};
 
+connectToWhatsApp()
+    .catch(err => console.log("unexpected error: " + err))
 server.listen(port, () => {
     console.log("Server running on port:", port);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
