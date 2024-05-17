@@ -34,10 +34,10 @@ app.get("/scan", (req, res) => res.sendFile(path.join(__dirname, "client", "serv
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "client", "index.html")));
 
 const generationConfig = {
-    temperature: 0.9,
-    topP: 0.1,
-    topK: 16,
-    maxOutputTokens: 2048,
+    temperature: process.env.TEMPERATURE,
+    topP: process.env.TOP_P,
+    topK: process.env.TOP_K,
+    maxOutputTokens: process.env.MAX_TOKEN,
 };
 
 const genAI = new GoogleGenerativeAI(process.env.API_KEY);
