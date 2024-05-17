@@ -1,31 +1,57 @@
-const express = require("express");
-const http = require("http");
-const path = require("path");
-const bodyParser = require("body-parser");
-const fileUpload = require("express-fileupload");
-const cors = require("cors");
-const pino = require("pino");
-const { Boom } = require("@hapi/boom");
-const qrcode = require("qrcode");
-const dotenv = require("dotenv");
-const { GoogleGenerativeAI } = require("@google/generative-ai");
 const {
-    makeWASocket,
+    default: makeWASocket,
+    MessageType,
+    MessageOptions,
+    Mimetype,
     DisconnectReason,
+    BufferJSON,
+    AnyMessageContent,
+    delay,
     fetchLatestBaileysVersion,
     isJidBroadcast,
+    makeCacheableSignalKeyStore,
     makeInMemoryStore,
+    MessageRetryMap,
     useMultiFileAuthState,
+    msgRetryCounterMap
 } = require("@whiskeysockets/baileys");
+
+const log = (pino = require("pino"));
+const { session } = { "session": "baileys_auth_info" };
+const { Boom } = require("@hapi/boom");
+const path = require('path');
+const fs = require('fs');
+const http = require('http');
+const https = require('https');
+const express = require("express");
+const fileUpload = require('express-fileupload');
+const cors = require('cors');
+const bodyParser = require("body-parser");
+const app = require("express")()
+const server = require("http").createServer(app);
+const io = require("socket.io")(server);
+const dotenv = require("dotenv");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const port = process.env.PORT || 8000;
+const qrcode = require("qrcode");
+
+const allowedGroupJIDs = process.env.GROUP_ID;
+const genAI = new GoogleGenerativeAI(process.env.API_KEY);
+const model = genAI.getGenerativeModel({ model: process.env.MODEL });
+
+const store = makeInMemoryStore({ logger: pino().child({ level: "silent", stream: "store" }) });
+
+let sock;
+let qr;
+let soket;
+let chatHistory = {};
 
 dotenv.config();
 
-const app = express();
-const server = http.createServer(app);
-const io = require("socket.io")(server);
-const port = process.env.PORT || 8000;
+app.use(fileUpload({
+    createParentPath: true
+}));
 
-app.use(fileUpload({ createParentPath: true }));
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -39,18 +65,6 @@ const generationConfig = {
     topK: process.env.TOP_K,
     maxOutputTokens: process.env.MAX_TOKEN,
 };
-
-const genAI = new GoogleGenerativeAI(process.env.API_KEY);
-const model = genAI.getGenerativeModel({ model: process.env.MODEL });
-
-const store = makeInMemoryStore({ logger: pino().child({ level: "silent", stream: "store" }) });
-
-let sock;
-let qr;
-let soket;
-let chatHistory = {};
-
-const allowedGroupJIDs = process.env.GROUP_ID;
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info')
@@ -124,7 +138,6 @@ async function connectToWhatsApp() {
                 const message = messages[0];
                 const sender = message.key.remoteJid;
 
-                // Check if the message is from an allowed group
                 if (!allowedGroupJIDs.includes(sender)) {
                     return;
                 }
@@ -166,7 +179,8 @@ async function connectToWhatsApp() {
 
 io.on("connection", async (socket) => {
     soket = socket;
-    if (isConnected()) {
+    // console.log(sock)
+    if (isConnected) {
         updateQR("connected");
     } else if (qr) {
         updateQR("qr");
@@ -203,7 +217,7 @@ const updateQR = (data) => {
 };
 
 connectToWhatsApp()
-    .catch(err => console.log("unexpected error: " + err))
+    .catch(err => console.log("unexpected error: " + err)) 
 server.listen(port, () => {
     console.log("Server running on port:", port);
 });
