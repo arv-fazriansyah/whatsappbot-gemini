@@ -41,7 +41,7 @@ const generationConfig = {
 };
 
 const genAI = new GoogleGenerativeAI(process.env.API_KEY);
-const model = genAI.getGenerativeModel({ model: process.env.MAX_TOKEN });
+const model = genAI.getGenerativeModel({ model: process.env.MODEL });
 
 const store = makeInMemoryStore({ logger: pino().child({ level: "silent", stream: "store" }) });
 
