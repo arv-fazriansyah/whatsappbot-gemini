@@ -53,31 +53,51 @@ let chatHistory = {};
 const allowedGroupJIDs = process.env.GROUP_ID;
 
 async function connectToWhatsApp() {
-    const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info');
+    const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info')
     let { version, isLatest } = await fetchLatestBaileysVersion();
     sock = makeWASocket({
         printQRInTerminal: true,
         auth: state,
-        logger: pino({ level: "silent" }),
+        logger: log({ level: "silent" }),
         version,
         shouldIgnoreJid: jid => isJidBroadcast(jid),
     });
     store.bind(sock.ev);
-    sock.multi = true;
+    sock.multi = true
     sock.ev.on('connection.update', async (update) => {
+        //console.log(update);
         const { connection, lastDisconnect } = update;
         if (connection === 'close') {
             let reason = new Boom(lastDisconnect.error).output.statusCode;
             if (reason === DisconnectReason.badSession) {
                 console.log(`Bad Session File, Please Delete ${session} and Scan Again`);
                 sock.logout();
-            } else {
-                console.log("Unhandled Disconnect Reason: ", reason);
+            } else if (reason === DisconnectReason.connectionClosed) {
+                console.log("Connection closed, reconnecting....");
+                connectToWhatsApp();
+            } else if (reason === DisconnectReason.connectionLost) {
+                console.log("Connection Lost from Server, reconnecting...");
+                connectToWhatsApp();
+            } else if (reason === DisconnectReason.connectionReplaced) {
+                console.log("Connection Replaced, Another New Session Opened, Please Close Current Session First");
                 sock.logout();
+            } else if (reason === DisconnectReason.loggedOut) {
+                console.log(`Device Logged Out, Please Delete ${session} and Scan Again.`);
+                sock.logout();
+            } else if (reason === DisconnectReason.restartRequired) {
+                console.log("Restart Required, Restarting...");
+                connectToWhatsApp();
+            } else if (reason === DisconnectReason.timedOut) {
+                console.log("Connection TimedOut, Reconnecting...");
+                connectToWhatsApp();
+            } else {
+                sock.end(`Unknown DisconnectReason: ${reason}|${lastDisconnect.error}`);
             }
         } else if (connection === 'open') {
             console.log('opened connection');
-            let groups = Object.values(await sock.groupFetchAllParticipating());
+            let getGroups = await sock.groupFetchAllParticipating();
+            let groups = Object.values(await sock.groupFetchAllParticipating())
+            //console.log(groups);
             for (let group of groups) {
                 console.log("id_group: " + group.id + " || Nama Group: " + group.subject);
             }
@@ -86,9 +106,11 @@ async function connectToWhatsApp() {
         if (update.qr) {
             qr = update.qr;
             updateQR("qr");
-        } else if (qr === undefined) {
+        }
+        else if (qr = undefined) {
             updateQR("loading");
-        } else {
+        }
+        else {
             if (update.connection === "open") {
                 updateQR("qrscanned");
                 return;
