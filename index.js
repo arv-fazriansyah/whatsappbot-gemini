@@ -17,6 +17,8 @@ const {
 } = require("@whiskeysockets/baileys");
 
 const log = (pino = require("pino"));
+const dotenv = require("dotenv");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 const { session } = { "session": "baileys_auth_info" };
 const { Boom } = require("@hapi/boom");
 const path = require('path');
@@ -28,7 +30,20 @@ const fileUpload = require('express-fileupload');
 const cors = require('cors');
 const bodyParser = require("body-parser");
 const app = require("express")()
-// enable files upload
+
+dotenv.config();
+
+const allowedGroupJIDs = process.env.GROUP_ID.split(',');
+const genAI = new GoogleGenerativeAI(process.env.API_KEY);
+const model = genAI.getGenerativeModel({ model: process.env.MODEL });
+
+const generationConfig = {
+    temperature: process.env.TEMPERATURE,
+    topP: process.env.TOP_P,
+    topK: process.env.TOP_K,
+    maxOutputTokens: process.env.MAX_TOKEN,
+};
+
 app.use(fileUpload({
     createParentPath: true
 }));
@@ -41,33 +56,16 @@ const io = require("socket.io")(server);
 const port = process.env.PORT || 8000;
 const qrcode = require("qrcode");
 
-app.use("/assets", express.static(__dirname + "/client/assets"));
+app.use("/assets", express.static(path.join(__dirname, "client", "assets")));
+app.get("/scan", (req, res) => res.sendFile(path.join(__dirname, "client", "server.html")));
+app.get("/", (req, res) => res.sendFile(path.join(__dirname, "client", "index.html")));
 
-app.get("/scan", (req, res) => {
-    res.sendFile("./client/server.html", {
-        root: __dirname,
-    });
-});
-
-app.get("/", (req, res) => {
-    res.sendFile("./client/index.html", {
-        root: __dirname,
-    });
-});
-//fungsi suara capital 
-function capital(textSound) {
-    const arr = textSound.split(" ");
-    for (var i = 0; i < arr.length; i++) {
-        arr[i] = arr[i].charAt(0).toUpperCase() + arr[i].slice(1);
-    }
-    const str = arr.join(" ");
-    return str;
-}
 const store = makeInMemoryStore({ logger: pino().child({ level: "silent", stream: "store" }) });
 
 let sock;
 let qr;
 let soket;
+let chatHistory = {};
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info')
@@ -82,7 +80,6 @@ async function connectToWhatsApp() {
     store.bind(sock.ev);
     sock.multi = true
     sock.ev.on('connection.update', async (update) => {
-        //console.log(update);
         const { connection, lastDisconnect } = update;
         if (connection === 'close') {
             let reason = new Boom(lastDisconnect.error).output.statusCode;
@@ -114,7 +111,6 @@ async function connectToWhatsApp() {
             console.log('opened connection');
             let getGroups = await sock.groupFetchAllParticipating();
             let groups = Object.values(await sock.groupFetchAllParticipating())
-            //console.log(groups);
             for (let group of groups) {
                 console.log("id_group: " + group.id + " || Nama Group: " + group.subject);
             }
@@ -135,34 +131,56 @@ async function connectToWhatsApp() {
         }
     });
     sock.ev.on("creds.update", saveCreds);
-    sock.ev.on("messages.upsert", async ({ messages, type }) => {
-        //console.log(messages);
-        if (type === "notify") {
-            if (!messages[0].key.fromMe) {
-                //tentukan jenis pesan berbentuk text                
-                const pesan = messages[0].message.conversation;
+        sock.ev.on("messages.upsert", async ({ messages, type }) => {
+            if (type === "notify") {
+                const message = messages[0];
+                if (!message.key.fromMe) {
+                    const sender = message.key.remoteJid;
+                    if (!allowedGroupJIDs.includes(sender)) return;
 
-                //nowa dari pengirim pesan sebagai id
-                const noWa = messages[0].key.remoteJid;
+                    const messageContent = message.message.conversation ||
+                        (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
+                    if (!messageContent) return;
 
-                await sock.readMessages([messages[0].key]);
+                    const incomingMessage = messageContent.toLowerCase();
+                    const formattedSender = `+${sender.match(/\d+/)[0]}`;
 
-                //kecilkan semua pesan yang masuk lowercase 
-                const pesanMasuk = pesan.toLowerCase();
+                    await sock.readMessages([message.key]);
+                    await sock.sendPresenceUpdate("composing", sender);
 
-                if (!messages[0].key.fromMe && pesanMasuk === "ping") {
-                    await sock.sendMessage(noWa, { text: "Pong" }, { quoted: messages[0] });
-                } else {
-                    await sock.sendMessage(noWa, { text: "Saya adalah Bot!" }, { quoted: messages[0] });
+                    if (incomingMessage === "/new") {
+                        await sock.sendMessage(sender, { text: `Conversation ID: ${formattedSender}` }, { quoted: message });
+                    } else {
+                        if (!chatHistory[sender]) {
+                            chatHistory[sender] = [
+                                { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}` }] },
+                                { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
+                            ];
+                        }
+                        try {
+                            const chat = model.startChat({ generationConfig, history: chatHistory[sender] });
+                            const result = await chat.sendMessage(incomingMessage);
+                            const response = result.response.text().replace(/\*\*/g, '*');
+
+                            if (!response) {
+                                await sock.sendMessage(sender, { text: "Maaf, terjadi kesalahan. Silakan coba lagi." }, { quoted: message });
+                                delete chatHistory[sender];
+                            } else {
+                                await sock.sendMessage(sender, { text: response }, { quoted: message });
+                            }
+                        } catch (error) {
+                            delete chatHistory[sender];
+                            await sock.sendMessage(sender, { text: "Maaf, terjadi kesalahan dalam memproses pesan Anda." }, { quoted: message });
+                            console.error("Error processing message:", error);
+                        }
+                    }
                 }
             }
-        }
-    });
+        });
 }
 
 io.on("connection", async (socket) => {
     soket = socket;
-    // console.log(sock)
     if (isConnected) {
         updateQR("connected");
     } else if (qr) {
@@ -170,7 +188,6 @@ io.on("connection", async (socket) => {
     }
 });
 
-// functions
 const isConnected = () => {
     return (sock.user);
 };
@@ -201,7 +218,7 @@ const updateQR = (data) => {
 };
 
 connectToWhatsApp()
-    .catch(err => console.log("unexpected error: " + err)) // catch any errors
+    .catch(err => console.log("unexpected error: " + err))
 server.listen(port, () => {
     console.log("Server running on port:", port);
 });
