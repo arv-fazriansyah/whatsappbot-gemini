@@ -10,7 +10,6 @@ const {
     makeInMemoryStore,
     DisconnectReason,
     useMultiFileAuthState,
-    Boom
 } = require("@whiskeysockets/baileys");
 
 const app = express();
