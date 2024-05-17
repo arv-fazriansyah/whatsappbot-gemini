@@ -1,7 +1,8 @@
-const express = require("express");
-const http = require('http');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
+const express = require("express");
+const { Boom } = require("@hapi/boom");
 const qrcode = require("qrcode");
+const http = require('http');
 const {
     makeWASocket,
     fetchLatestBaileysVersion,
