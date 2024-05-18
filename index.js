@@ -33,17 +33,6 @@ const app = require("express")()
 
 dotenv.config();
 
-const allowedGroupJIDs = process.env.GROUP_ID.split(',');
-const genAI = new GoogleGenerativeAI(process.env.API_KEY);
-const model = genAI.getGenerativeModel({ model: process.env.MODEL });
-
-const generationConfig = {
-    temperature: process.env.TEMPERATURE,
-    topP: process.env.TOP_P,
-    topK: process.env.TOP_K,
-    maxOutputTokens: process.env.MAX_TOKEN,
-};
-
 app.use(fileUpload({
     createParentPath: true
 }));
@@ -55,17 +44,28 @@ const server = require("http").createServer(app);
 const io = require("socket.io")(server);
 const port = process.env.PORT || 8000;
 const qrcode = require("qrcode");
+const { error } = require("console");
 
 app.use("/assets", express.static(path.join(__dirname, "client", "assets")));
 app.get("/scan", (req, res) => res.sendFile(path.join(__dirname, "client", "server.html")));
 app.get("/", (req, res) => res.sendFile(path.join(__dirname, "client", "index.html")));
 
 const store = makeInMemoryStore({ logger: pino().child({ level: "silent", stream: "store" }) });
+const genAI = new GoogleGenerativeAI(process.env.API_KEY);
+const model = genAI.getGenerativeModel({ model: process.env.MODEL });
+
+const generationConfig = {
+    temperature: process.env.TEMPERATURE,
+    topP: process.env.TOP_P,
+    topK: process.env.TOP_K,
+    maxOutputTokens: process.env.MAX_TOKEN,
+};
 
 let sock;
 let qr;
 let soket;
 let chatHistory = {};
+let allowContactsCheck = process.env.ALLOWEDCONTACTS === 'true';
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info')
@@ -80,6 +80,7 @@ async function connectToWhatsApp() {
     store.bind(sock.ev);
     sock.multi = true
     sock.ev.on('connection.update', async (update) => {
+        //console.log(update);
         const { connection, lastDisconnect } = update;
         if (connection === 'close') {
             let reason = new Boom(lastDisconnect.error).output.statusCode;
@@ -111,8 +112,9 @@ async function connectToWhatsApp() {
             console.log('opened connection');
             let getGroups = await sock.groupFetchAllParticipating();
             let groups = Object.values(await sock.groupFetchAllParticipating())
+            //console.log(groups);
             for (let group of groups) {
-                console.log("id_group: " + group.id + " || Nama Group: " + group.subject);
+                console.log("GROUP_ID: " + group.id + " || GROUP_NAME: " + group.subject);
             }
             return;
         }
@@ -131,56 +133,72 @@ async function connectToWhatsApp() {
         }
     });
     sock.ev.on("creds.update", saveCreds);
-        sock.ev.on("messages.upsert", async ({ messages, type }) => {
-            if (type === "notify") {
-                const message = messages[0];
-                if (!message.key.fromMe) {
-                    const sender = message.key.remoteJid;
-                    if (!allowedGroupJIDs.includes(sender)) return;
-
-                    const messageContent = message.message.conversation ||
-                        (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
-                    if (!messageContent) return;
-
-                    const incomingMessage = messageContent.toLowerCase();
-                    const formattedSender = `+${sender.match(/\d+/)[0]}`;
-
+    sock.ev.on("messages.upsert", async ({ messages, type }) => {
+        try {
+            if (type !== "notify") return;
+    
+            const message = messages[0];
+            const sender = message.key.remoteJid;
+            const isGroupMessage = sender.endsWith("@g.us");
+    
+            if (message.key.fromMe) return;
+    
+            const messageContent = message.message.conversation || (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
+            if (!messageContent) return;
+    
+            console.log("CONTACTS_ID: " + sender + " || NAME: " + message.pushName);
+    
+            const allowedGroups = process.env.GROUP_ID;
+            const allowedContacts = process.env.CONTACTS_ID;
+    
+            if ((isGroupMessage && !allowedGroups.includes(sender)) ||
+                (!isGroupMessage && allowContactsCheck && !allowedContacts.includes(sender))) {
+                if (!isGroupMessage) {
                     await sock.readMessages([message.key]);
                     await sock.sendPresenceUpdate("composing", sender);
-
-                    if (incomingMessage === "/new") {
-                        await sock.sendMessage(sender, { text: `Conversation ID: ${formattedSender}` }, { quoted: message });
-                    } else {
-                        if (!chatHistory[sender]) {
-                            chatHistory[sender] = [
-                                { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}` }] },
-                                { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
-                            ];
-                        }
-                        try {
-                            const chat = model.startChat({ generationConfig, history: chatHistory[sender] });
-                            const result = await chat.sendMessage(incomingMessage);
-                            const response = result.response.text().replace(/\*\*/g, '*');
-
-                            if (!response) {
-                                await sock.sendMessage(sender, { text: "Maaf, terjadi kesalahan. Silakan coba lagi." }, { quoted: message });
-                                delete chatHistory[sender];
-                            } else {
-                                await sock.sendMessage(sender, { text: response }, { quoted: message });
-                            }
-                        } catch (error) {
-                            delete chatHistory[sender];
-                            await sock.sendMessage(sender, { text: "Maaf, terjadi kesalahan dalam memproses pesan Anda." }, { quoted: message });
-                            console.error("Error processing message:", error);
-                        }
-                    }
+                    await sock.sendMessage(sender, { text: "Maaf, nomor Anda tidak terdaftar." });
+                }
+                return;
+            }
+    
+            await Promise.all([
+                sock.readMessages([message.key]),
+                sock.sendPresenceUpdate("composing", sender)
+            ]);
+    
+            const incomingMessage = messageContent.toLowerCase();
+            const formattedSender = `+${sender.match(/\d+/)[0]}`;
+    
+            if (incomingMessage === "/new") {
+                await sock.sendMessage(sender, { text: `Conversation ID: ${formattedSender}` }, { quoted: message });
+            } else {
+                chatHistory[sender] = chatHistory[sender] || [
+                    { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}` }] },
+                    { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
+                ];
+    
+                const chat = model.startChat({ generationConfig, history: chatHistory[sender] });
+                const result = await chat.sendMessage(incomingMessage);
+                const response = result.response.text().replace(/\*\*/g, '*');
+    
+                if (!response) {
+                    await sock.sendMessage(sender, { text: "Maaf, terjadi kesalahan. Silakan coba lagi." }, { quoted: message });
+                    delete chatHistory[sender];
+                } else {
+                    await sock.sendMessage(sender, { text: response }, { quoted: message });
                 }
             }
-        });
+        } catch (error) {
+            console.error("Error occurred:", error);
+            await sock.sendMessage(sender, { text: error.message });
+        }
+    });              
+                    
 }
 
 io.on("connection", async (socket) => {
     soket = socket;
+    // console.log(sock)
     if (isConnected) {
         updateQR("connected");
     } else if (qr) {
@@ -188,6 +206,7 @@ io.on("connection", async (socket) => {
     }
 });
 
+// functions
 const isConnected = () => {
     return (sock.user);
 };
