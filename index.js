@@ -67,6 +67,11 @@ let soket;
 let chatHistory = {};
 let allowContactsCheck = process.env.ALLOWEDCONTACTS === 'true';
 
+const updatePresence = async () => {
+    await sock.readMessages([message.key]);
+    await sock.sendPresenceUpdate("composing", sender);
+};
+
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info')
     let { version, isLatest } = await fetchLatestBaileysVersion();
@@ -139,60 +144,61 @@ async function connectToWhatsApp() {
     
             const message = messages[0];
             const sender = message.key.remoteJid;
-            const isGroupMessage = sender.endsWith("@g.us");
     
-            if (message.key.fromMe) return;
+            if (!message.key.fromMe) {
+                const messageContent = message.message.conversation || (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
+                if (!messageContent) return;
     
-            const messageContent = message.message.conversation || (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
-            if (!messageContent) return;
+                console.log("CONTACTS_ID: " + sender + " || NAME: " + message.pushName);
     
-            console.log("CONTACTS_ID: " + sender + " || NAME: " + message.pushName);
+                const allowedGroups = process.env.GROUP_ID;
+                const allowedContacts = process.env.CONTACTS_ID;
+                const isGroupMessage = sender.endsWith("@g.us");
     
-            const allowedGroups = process.env.GROUP_ID;
-            const allowedContacts = process.env.CONTACTS_ID;
-    
-            if ((isGroupMessage && !allowedGroups.includes(sender)) ||
-                (!isGroupMessage && allowContactsCheck && !allowedContacts.includes(sender))) {
-                if (!isGroupMessage) {
-                    await sock.readMessages([message.key]);
-                    await sock.sendPresenceUpdate("composing", sender);
-                    await sock.sendMessage(sender, { text: "Maaf, nomor Anda tidak terdaftar." });
+                if (isGroupMessage && !allowedGroups.includes(sender)) {
+                    return;
+                } else if (!isGroupMessage && allowContactsCheck) {
+                    if (!allowedContacts.includes(sender)) {
+                        await sock.readMessages([message.key]);
+                        await sock.sendPresenceUpdate("composing", sender);
+                        await sock.sendMessage(sender, { text: "Maaf, nomor Anda tidak terdaftar." });
+                        return;
+                    }
                 }
-                return;
-            }
     
-            await Promise.all([
-                sock.readMessages([message.key]),
-                sock.sendPresenceUpdate("composing", sender)
-            ]);
+                await sock.readMessages([message.key]);
+                await sock.sendPresenceUpdate("composing", sender);
     
-            const incomingMessage = messageContent.toLowerCase();
-            const formattedSender = `+${sender.match(/\d+/)[0]}`;
+                const incomingMessage = messageContent.toLowerCase();
+                const formattedSender = `+${sender.match(/\d+/)[0]}`;
     
-            if (incomingMessage === "/new") {
-                await sock.sendMessage(sender, { text: `Conversation ID: ${formattedSender}` }, { quoted: message });
-            } else {
-                chatHistory[sender] = chatHistory[sender] || [
-                    { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}` }] },
-                    { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
-                ];
-    
-                const chat = model.startChat({ generationConfig, history: chatHistory[sender] });
-                const result = await chat.sendMessage(incomingMessage);
-                const response = result.response.text().replace(/\*\*/g, '*');
-    
-                if (!response) {
-                    await sock.sendMessage(sender, { text: "Maaf, terjadi kesalahan. Silakan coba lagi." }, { quoted: message });
-                    delete chatHistory[sender];
+                if (incomingMessage === "/new") {
+                    await sock.sendMessage(sender, { text: `Conversation ID: ${formattedSender}` }, { quoted: message });
                 } else {
-                    await sock.sendMessage(sender, { text: response }, { quoted: message });
+                    if (!chatHistory[sender]) {
+                        chatHistory[sender] = [
+                            { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}` }] },
+                            { role: "model", parts: [{ text: "Halo, aku Veronisa dirancang oleh fazriansyah.my.id. Asisten yang sangat membantu, kreatif, pintar, dan ramah." }] },
+                        ];
+                    }
+    
+                    const chat = model.startChat({ generationConfig, history: chatHistory[sender] });
+                    const result = await chat.sendMessage(incomingMessage);
+                    const response = result.response.text().replace(/\*\*/g, '*');
+    
+                    if (!response) {
+                        await sock.sendMessage(sender, { text: "Maaf, terjadi kesalahan. Silakan coba lagi." }, { quoted: message });
+                        delete chatHistory[sender];
+                    } else {
+                        await sock.sendMessage(sender, { text: response }, { quoted: message });
+                    }
                 }
             }
         } catch (error) {
             console.error("Error occurred:", error);
             await sock.sendMessage(sender, { text: error.message });
         }
-    });              
+    });                     
                     
 }
 
