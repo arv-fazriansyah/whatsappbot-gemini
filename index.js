@@ -133,64 +133,64 @@ async function connectToWhatsApp() {
     });
     sock.ev.on("creds.update", saveCreds);
     sock.ev.on("messages.upsert", async ({ messages, type }) => {
-        try {
-            if (type !== "notify") return;
-    
-            const message = messages[0];
-            const sender = message.key.remoteJid;
-            const formattedSender = `+${sender.match(/\d+/)[0]}`;
-    
-            if (!message.key.fromMe) {
-                const messageContent = message.message.conversation || (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
-                if (!messageContent) return;
-    
-                console.log("CONTACTS_ID: " + sender + " || NAME: " + message.pushName);
-    
-                const allowedGroups = process.env.GROUP_ID;
-                const allowedContacts = process.env.CONTACTS_ID;
-                const isGroupMessage = sender.endsWith("@g.us");
-    
-                if (isGroupMessage && !allowedGroups.includes(sender)) {
-                    return;
-                } else if (!isGroupMessage && allowContactsCheck) {
-                    if (!allowedContacts.includes(sender)) {
-                        await updatePresence(sock, message, sender);
-                        await sock.sendMessage(sender, { text: `Maaf, ID: ${formattedSender} tidak terdaftar.` });
-                        return;
-                    }
-                }
-    
+    if (type !== "notify") return;
+
+    const message = messages[0];
+    const sender = message.key.remoteJid;
+    const formattedSender = `+${sender.match(/\d+/)[0]}`;
+
+    if (!message.key.fromMe) {
+        const messageContent = message.message.conversation || (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
+        if (!messageContent) return;
+
+        console.log("CONTACTS_ID: " + sender + " || NAME: " + message.pushName);
+
+        const allowedGroups = process.env.GROUP_ID;
+        const allowedContacts = process.env.CONTACTS_ID;
+        const isGroupMessage = sender.endsWith("@g.us");
+
+        if (isGroupMessage && !allowedGroups.includes(sender)) {
+            return;
+        } else if (!isGroupMessage && allowContactsCheck) {
+            if (!allowedContacts.includes(sender)) {
                 await updatePresence(sock, message, sender);
-                const incomingMessage = messageContent.toLowerCase();
-    
-                if (incomingMessage === "/new") {
-                    await sock.sendMessage(sender, { text: `Conversation ID: ${formattedSender}` }, { quoted: message });
+                await sock.sendMessage(sender, { text: `Maaf, ID: ${formattedSender} tidak terdaftar.` });
+                return;
+            }
+        }
+
+        try {
+            await updatePresence(sock, message, sender);
+            const incomingMessage = messageContent.toLowerCase();
+
+            if (incomingMessage === "/new") {
+                await sock.sendMessage(sender, { text: `Conversation ID: ${formattedSender}` }, { quoted: message });
+            } else {
+                if (!chatHistory[sender]) {
+                    chatHistory[sender] = [
+                        { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}, Nomor whatsapp: ${formattedSender}` }] },
+                        { role: "model", parts: [{ text: process.env.SYSTEM_MESSAGES }] },
+                    ];
+                }
+
+                const chat = model.startChat({ generationConfig, history: chatHistory[sender] });
+                const result = await chat.sendMessage(incomingMessage);
+                const response = result.response.text().replace(/\*\*/g, '*');
+
+                if (!response) {
+                    await sock.sendMessage(sender, { text: "Maaf, terjadi kesalahan. Silakan coba lagi." }, { quoted: message });
+                    delete chatHistory[sender];
                 } else {
-                    if (!chatHistory[sender]) {
-                        chatHistory[sender] = [
-                            { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}` }] },
-                            { role: "model", parts: [{ text: process.env.SYSTEM_MESSAGES }] },
-                        ];
-                    }
-    
-                    const chat = model.startChat({ generationConfig, history: chatHistory[sender] });
-                    const result = await chat.sendMessage(incomingMessage);
-                    const response = result.response.text().replace(/\*\*/g, '*');
-    
-                    if (!response) {
-                        await sock.sendMessage(sender, { text: "Maaf, terjadi kesalahan. Silakan coba lagi." }, { quoted: message });
-                        delete chatHistory[sender];
-                    } else {
-                        await sock.sendMessage(sender, { text: response }, { quoted: message });
-                    }
+                    await sock.sendMessage(sender, { text: response }, { quoted: message });
                 }
             }
         } catch (error) {
-            console.error("Error occurred:", error);
-            await sock.sendMessage(message.key.remoteJid, { text: error.message });
+            console.error("Error:", error);
+            await sock.sendMessage(sender, { text: "Maaf, terjadi kesalahan dalam memproses permintaan Anda." }, { quoted: message });
         }
-    });                     
-                    
+    }
+});                  
+    
 }
 
 io.on("connection", async (socket) => {
