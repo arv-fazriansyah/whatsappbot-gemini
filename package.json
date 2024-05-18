@@ -1,7 +1,7 @@
 {
-  "name": "chatbot",
+  "name": "gemini-whatsapp",
   "version": "1.0.0",
-  "description": "whatsapp bot gemini",
+  "description": "gemini ai whatsapp",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -27,6 +27,6 @@
     "socket.io": "^4.7.5"
   },
   "devDependencies": {
-    "nodemon": "^2.0.15"
+    "nodemon": "^3.1.0"
   }
 }
