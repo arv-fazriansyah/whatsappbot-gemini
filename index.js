@@ -169,7 +169,7 @@ async function connectToWhatsApp() {
             } else {
                 if (!chatHistory[sender]) {
                     chatHistory[sender] = [
-                        { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}, Nomor whatsapp: ${formattedSender}` }] },
+                        { role: "user", parts: [{ text: `Halo, nama saya: ${message.pushName}.` }] },
                         { role: "model", parts: [{ text: process.env.SYSTEM_MESSAGES }] },
                     ];
                 }
