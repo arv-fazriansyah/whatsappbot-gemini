@@ -164,6 +164,7 @@ async function connectToWhatsApp() {
             const incomingMessage = messageContent.toLowerCase();
 
             if (incomingMessage === "/new") {
+                delete chatHistory[sender];
                 await sock.sendMessage(sender, { text: `Conversation ID: ${formattedSender}` }, { quoted: message });
             } else {
                 if (!chatHistory[sender]) {
