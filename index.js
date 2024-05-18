@@ -187,7 +187,7 @@ async function connectToWhatsApp() {
             }
         } catch (error) {
             console.error("Error occurred:", error);
-            await sock.sendMessage(sender, { text: error.message });
+            await sock.sendMessage(message.key.remoteJid, { text: error.message });
         }
     });                     
                     
