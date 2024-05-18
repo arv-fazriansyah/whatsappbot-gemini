@@ -32,13 +32,9 @@ const bodyParser = require("body-parser");
 const app = require("express")()
 
 dotenv.config();
-
-app.use(fileUpload({
-    createParentPath: true
-}));
-
 app.use(cors());
 app.use(bodyParser.json());
+app.use(fileUpload({createParentPath: true}));
 app.use(bodyParser.urlencoded({ extended: true }));
 const server = require("http").createServer(app);
 const io = require("socket.io")(server);
@@ -67,10 +63,10 @@ let soket;
 let chatHistory = {};
 let allowContactsCheck = process.env.ALLOWEDCONTACTS === 'true';
 
-const updatePresence = async () => {
+async function updatePresence(sock, message, sender) {
     await sock.readMessages([message.key]);
     await sock.sendPresenceUpdate("composing", sender);
-};
+}
 
 async function connectToWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('baileys_auth_info')
@@ -85,7 +81,6 @@ async function connectToWhatsApp() {
     store.bind(sock.ev);
     sock.multi = true
     sock.ev.on('connection.update', async (update) => {
-        //console.log(update);
         const { connection, lastDisconnect } = update;
         if (connection === 'close') {
             let reason = new Boom(lastDisconnect.error).output.statusCode;
@@ -117,7 +112,6 @@ async function connectToWhatsApp() {
             console.log('opened connection');
             let getGroups = await sock.groupFetchAllParticipating();
             let groups = Object.values(await sock.groupFetchAllParticipating())
-            //console.log(groups);
             for (let group of groups) {
                 console.log("GROUP_ID: " + group.id + " || GROUP_NAME: " + group.subject);
             }
@@ -144,6 +138,7 @@ async function connectToWhatsApp() {
     
             const message = messages[0];
             const sender = message.key.remoteJid;
+            const formattedSender = `+${sender.match(/\d+/)[0]}`;
     
             if (!message.key.fromMe) {
                 const messageContent = message.message.conversation || (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
@@ -159,18 +154,14 @@ async function connectToWhatsApp() {
                     return;
                 } else if (!isGroupMessage && allowContactsCheck) {
                     if (!allowedContacts.includes(sender)) {
-                        await sock.readMessages([message.key]);
-                        await sock.sendPresenceUpdate("composing", sender);
-                        await sock.sendMessage(sender, { text: "Maaf, nomor Anda tidak terdaftar." });
+                        await updatePresence(sock, message, sender);
+                        await sock.sendMessage(sender, { text: `Maaf, ID: ${formattedSender} tidak terdaftar.` });
                         return;
                     }
                 }
     
-                await sock.readMessages([message.key]);
-                await sock.sendPresenceUpdate("composing", sender);
-    
+                await updatePresence(sock, message, sender);
                 const incomingMessage = messageContent.toLowerCase();
-                const formattedSender = `+${sender.match(/\d+/)[0]}`;
     
                 if (incomingMessage === "/new") {
                     await sock.sendMessage(sender, { text: `Conversation ID: ${formattedSender}` }, { quoted: message });
@@ -204,7 +195,6 @@ async function connectToWhatsApp() {
 
 io.on("connection", async (socket) => {
     soket = socket;
-    // console.log(sock)
     if (isConnected) {
         updateQR("connected");
     } else if (qr) {
@@ -212,7 +202,6 @@ io.on("connection", async (socket) => {
     }
 });
 
-// functions
 const isConnected = () => {
     return (sock.user);
 };
