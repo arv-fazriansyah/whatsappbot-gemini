@@ -175,7 +175,7 @@ async function connectToWhatsApp() {
 
                 const chat = model.startChat({ generationConfig, history: chatHistory[sender] });
                 const result = await chat.sendMessage(incomingMessage);
-                const response = result.response.text().replace(/\*\*/g, '*');
+                const response = result.response.text().replace(/\*\*+/g, '*');
 
                 if (!response) {
                     await sock.sendMessage(sender, { text: "Maaf, terjadi kesalahan. Silakan coba lagi." }, { quoted: message });
