@@ -160,6 +160,7 @@ async function connectToWhatsApp() {
     
                     const query = messageContent.trim().substring(3).trim();
                     if (!query) {
+                        await updatePresence(sock, message, sender);
                         await sock.sendMessage(sender, { text: "_Penggunaan:_\n*/ai* `Isi pesan Anda`\n\n_Contoh:_\n*/ai* `Sebutkan hewan mamalia?`" }, { quoted: message });
                         return;
                     }
@@ -167,7 +168,8 @@ async function connectToWhatsApp() {
             } else if (!isGroupMessage) {
                 const cmd = messageContent.trim().split(' ')[0].toLowerCase();
                 if (cmd === '/ai') {
-                    await sock.sendMessage(sender, { text: "Fitur ini hanya tersedia untuk grup." }, { quoted: message });
+                    await updatePresence(sock, message, sender);
+                    await sock.sendMessage(sender, { text: "Fitur `/ai` hanya tersedia untuk grup." }, { quoted: message });
                     return;
                 }
     
