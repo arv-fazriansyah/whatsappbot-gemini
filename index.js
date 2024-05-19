@@ -134,60 +134,39 @@ async function connectToWhatsApp() {
     sock.ev.on("creds.update", saveCreds);                     
     sock.ev.on("messages.upsert", async ({ messages, type }) => {
         if (type !== "notify") return;
-    
         const message = messages[0];
         const sender = message.key.remoteJid;
         const formattedSender = `+${sender.match(/\d+/)[0]}`;
-    
         if (!message.key.fromMe) {
             const messageContent = message.message.conversation || (message.message.extendedTextMessage && message.message.extendedTextMessage.text);
             if (!messageContent) return;
-    
             console.log("CONTACTS_ID: " + sender + " || NAME: " + message.pushName);
-    
             const allowedGroups = process.env.GROUP_ID;
             const allowedContacts = process.env.CONTACTS_ID;
             const isGroupMessage = sender.endsWith("@g.us");
-    
-            if (isGroupMessage) {
-                if (!allowedGroups.includes(sender)) {
-                    return;
-                } else {
-                    const cmd = messageContent.trim().split(' ')[0].toLowerCase();
-                    if (cmd !== '/ai') {
-                        return;
-                    }
-    
-                    const query = messageContent.trim().substring(3).trim();
-                    if (!query) {
-                        await updatePresence(sock, message, sender);
-                        await sock.sendMessage(sender, { text: "_Penggunaan:_\n*/ai* `Isi pesan Anda`\n\n_Contoh:_\n*/ai* `Sebutkan hewan mamalia?`" }, { quoted: message });
-                        return;
-                    }
-                }
-            } else if (!isGroupMessage) {
-                const cmd = messageContent.trim().split(' ')[0].toLowerCase();
-                if (cmd === '/ai') {
-                    await updatePresence(sock, message, sender);
-                    await sock.sendMessage(sender, { text: "Fitur `/ai` hanya tersedia untuk grup." }, { quoted: message });
-                    return;
-                }
-    
-                if (allowContactsCheck && !allowedContacts.includes(sender)) {
-                    await updatePresence(sock, message, sender);
-                    await sock.sendMessage(sender, { text: `Maaf, ID: ${formattedSender} tidak terdaftar.` });
-                    return;
-                }
+            if (isGroupMessage && !allowedGroups.includes(sender)) return;
+            const cmd = messageContent.trim().split(' ')[0].toLowerCase();
+            if (isGroupMessage && cmd !== '/ai') return;
+            const query = messageContent.trim().substring(3).trim();
+            if (isGroupMessage && !query) {
+                await updatePresence(sock, message, sender);
+                await sock.sendMessage(sender, { text: "_Penggunaan:_\n*/ai* `Isi pesan Anda`\n\n_Contoh:_\n*/ai* `Sebutkan hewan mamalia?`" }, { quoted: message });
+                return;
             }
-    
+            if (!isGroupMessage && cmd === '/ai') {
+                await updatePresence(sock, message, sender);
+                await sock.sendMessage(sender, { text: "Fitur `/ai` hanya tersedia untuk grup." }, { quoted: message });
+                return;
+            }
+            if (!isGroupMessage && allowContactsCheck && !allowedContacts.includes(sender)) {
+                await updatePresence(sock, message, sender);
+                await sock.sendMessage(sender, { text: `Maaf, ID: ${formattedSender} tidak terdaftar.` });
+                return;
+            }
             try {
                 await updatePresence(sock, message, sender);
                 let incomingMessage = messageContent.toLowerCase();
-    
-                if (isGroupMessage) {
-                    incomingMessage = incomingMessage.slice(3).trim();
-                }
-    
+                if (isGroupMessage) incomingMessage = incomingMessage.slice(3).trim();
                 if (incomingMessage === "/new") {
                     delete chatHistory[sender];
                     await sock.sendMessage(sender, { text: `Conversation ID: ${formattedSender}` }, { quoted: message });
@@ -198,11 +177,9 @@ async function connectToWhatsApp() {
                             { role: "model", parts: [{ text: process.env.SYSTEM_MESSAGES }] },
                         ];
                     }
-    
                     const chat = model.startChat({ generationConfig, history: chatHistory[sender] });
                     const result = await chat.sendMessage(incomingMessage);
                     const response = result.response.text().replace(/\*\*+/g, '*');
-    
                     if (!response) {
                         await sock.sendMessage(sender, { text: "Maaf, terjadi kesalahan. Silakan coba lagi." }, { quoted: message });
                         delete chatHistory[sender];
@@ -215,7 +192,7 @@ async function connectToWhatsApp() {
                 await sock.sendMessage(sender, { text: "Maaf, terjadi kesalahan dalam memproses permintaan Anda." }, { quoted: message });
             }
         }
-    });             
+    });                    
     
 }
 
