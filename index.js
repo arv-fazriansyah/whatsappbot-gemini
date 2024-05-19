@@ -198,6 +198,7 @@ async function connectToWhatsApp() {
                 }
             } catch (error) {
                 console.error("Error:", error);
+                delete chatHistory[sender];
                 await sock.sendMessage(sender, { text: "Maaf, terjadi kesalahan dalam memproses permintaan Anda." }, { quoted: message });
             }
         }
