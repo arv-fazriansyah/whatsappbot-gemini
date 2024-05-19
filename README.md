@@ -43,7 +43,7 @@ Berikut adalah panduan instalasi untuk menjalankan WhatsApp Gemini di Termux:
 
 8. Terakhir, jalankan WhatsApp Gemini dengan perintah:
    ```bash
-   npm run start
+   npm run start / node index.js / pm2 start index.js
    ```
 
 Setelah langkah-langkah di atas selesai, Anda seharusnya dapat menjalankan WhatsApp Gemini di Termux. Pastikan untuk mengikuti instruksi setiap langkah dengan cermat untuk memastikan instalasi yang berhasil. Jika ada masalah, pastikan bahwa semua dependensi telah diinstal dengan benar dan perintah-perintah dieksekusi tanpa kesalahan.
