@@ -146,6 +146,15 @@ async function connectToWhatsApp() {
             const isGroupMessage = sender.endsWith("@g.us");
             if (isGroupMessage && !allowedGroups.includes(sender)) return;
             const cmd = messageContent.trim().split(' ')[0].toLowerCase();
+            if (cmd === '/help') {
+                await updatePresence(sock, message, sender);
+                const helpMessage = "Daftar perintah yang tersedia:\n\n" +
+                                    "* `/ai`\n" +
+                                    "* `/new`\n" +
+                                    "* `/help`\n";
+                await sock.sendMessage(sender, { text: helpMessage }, { quoted: message });
+                return;
+            }
             if (isGroupMessage && cmd !== '/ai') return;
             const query = messageContent.trim().substring(3).trim();
             if (isGroupMessage && !query) {
@@ -192,7 +201,7 @@ async function connectToWhatsApp() {
                 await sock.sendMessage(sender, { text: "Maaf, terjadi kesalahan dalam memproses permintaan Anda." }, { quoted: message });
             }
         }
-    });                    
+    });                       
     
 }
 
