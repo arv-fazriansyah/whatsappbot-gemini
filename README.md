@@ -36,6 +36,9 @@ Berikut adalah panduan instalasi untuk menjalankan WhatsApp Gemini di Termux:
    ```bash
    cp .example.env .env
    ```
+      ```bash
+   nano .env
+   ```
    Kemudian ubah nilai variabel `API_KEY` dengan API_KEY yang Anda dapatkan dari [Google AI Studio](https://aistudio.google.com/app/apikey):
    ```bash
    API_KEY=YOUR_API_KEY
