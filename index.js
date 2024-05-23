@@ -55,6 +55,7 @@ const generationConfig = {
     topP: process.env.TOP_P,
     topK: process.env.TOP_K,
     maxOutputTokens: process.env.MAX_TOKEN,
+    responseMimeType: "text/plain",
 };
 
 let sock;
